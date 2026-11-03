@@ -1,0 +1,389 @@
+{
+  "name": "bastion-baseline",
+  "displayName": "Bastion baseline",
+  "description": "Secure-by-default guardrails for the Bastion landing zone. Built-in definitions wherever one exists. Every effect is a parameter so each control can move from Audit to its target effect on its own.",
+  "metadata": {
+    "category": "Bastion",
+    "version": "1.0.0",
+    "builtInsVerifiedAgainst": "github.com/Azure/azure-policy commit f096d8d (2026-10-28)"
+  },
+  "extraParameters": {
+    "listOfAllowedLocations": {
+      "type": "Array",
+      "metadata": {
+        "displayName": "Allowed locations",
+        "description": "Regions where Bastion resources may be created."
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "String",
+      "metadata": {
+        "displayName": "Log Analytics workspace",
+        "description": "Resource ID of law-huginn.",
+        "strongType": "omsWorkspace"
+      }
+    }
+  },
+  "controls": [
+    {
+      "control": "storage_shared_key",
+      "title": "Storage accounts disable shared key access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "P-12",
+        "D-01",
+        "D-02"
+      ],
+      "why": "With shared keys disabled, the keys returned by listKeys cannot authenticate to the data plane.",
+      "members": [
+        {
+          "referenceId": "storage-shared-key",
+          "definition": "builtin:8c6a50c6-9ffd-4ae7-986f-5fa6111f9a54",
+          "definitionName": "Storage accounts should prevent shared key access",
+          "definitionVersion": "2.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_storage_shared_key')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "storage_public_network",
+      "title": "Storage accounts disable public network access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "D-01",
+        "D-02"
+      ],
+      "why": "A stolen token cannot reach blob or file data from outside the private network.",
+      "members": [
+        {
+          "referenceId": "storage-public-network",
+          "definition": "builtin:b2982f36-99f2-4db5-8eff-283140c09693",
+          "definitionName": "Storage accounts should disable public network access",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_storage_public_network')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "keyvault_public_network",
+      "title": "Key Vault disables public network access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "A stolen token cannot read secrets from outside the private network.",
+      "members": [
+        {
+          "referenceId": "keyvault-public-network",
+          "definition": "builtin:405c5871-3e91-4644-8a63-58e19d68ff5b",
+          "definitionName": "Azure Key Vault should disable public network access",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_keyvault_public_network')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "acr_admin_user",
+      "title": "Container registries disable the local admin user",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "P-13",
+        "D-03"
+      ],
+      "why": "With the admin user disabled, listCredentials returns nothing usable.",
+      "members": [
+        {
+          "referenceId": "acr-admin-user",
+          "definition": "builtin:dc921057-6b28-4fbe-9b83-f7bec05db6c2",
+          "definitionName": "Container registries should have local admin account disabled.",
+          "definitionVersion": "1.0.1",
+          "parameters": {
+            "effect": "[parameters('effect_acr_admin_user')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "appservice_basic_auth_audit",
+      "title": "App Service and Function apps: report SCM and FTP basic auth",
+      "allowedEffects": [
+        "AuditIfNotExists",
+        "Disabled"
+      ],
+      "auditEffect": "AuditIfNotExists",
+      "targetEffect": "AuditIfNotExists",
+      "fenrir": [
+        "X-10",
+        "X-11"
+      ],
+      "why": "Shows every app where publishing credentials still work. No Deny built-in exists for this setting.",
+      "members": [
+        {
+          "referenceId": "app-scm-basic-auth-audit",
+          "definition": "builtin:aede300b-d67f-480a-ae26-4b3dfb1a1fdc",
+          "definitionName": "App Service apps should have local authentication methods disabled for SCM site deployments",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        },
+        {
+          "referenceId": "app-ftp-basic-auth-audit",
+          "definition": "builtin:871b205b-57cf-4e1e-a234-492616998bf7",
+          "definitionName": "App Service apps should have local authentication methods disabled for FTP deployments",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        },
+        {
+          "referenceId": "func-scm-basic-auth-audit",
+          "definition": "builtin:5826c6cd-9302-4aee-bced-3b1698a08f29",
+          "definitionName": "Function apps should have local authentication methods disabled for SCM site deployments",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        },
+        {
+          "referenceId": "func-ftp-basic-auth-audit",
+          "definition": "builtin:3357bf2d-1d96-4829-9724-998ef6e7b1d2",
+          "definitionName": "Function apps should have local authentication methods disabled for FTP deployments",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "appservice_basic_auth_fix",
+      "title": "App Service and Function apps: turn SCM and FTP basic auth off",
+      "allowedEffects": [
+        "DeployIfNotExists",
+        "Disabled"
+      ],
+      "auditEffect": "Disabled",
+      "targetEffect": "DeployIfNotExists",
+      "fenrir": [
+        "X-10",
+        "X-11"
+      ],
+      "why": "Sets basicPublishingCredentialsPolicies/scm and /ftp to allow=false, so the Kudu path with publishing credentials fails. Remediation, not prevention: there is a window between creation and the fix.",
+      "members": [
+        {
+          "referenceId": "app-scm-basic-auth-fix",
+          "definition": "builtin:5e97b776-f380-4722-a9a3-e7f0be029e79",
+          "definitionName": "Configure App Service apps to disable local authentication for SCM sites",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        },
+        {
+          "referenceId": "app-ftp-basic-auth-fix",
+          "definition": "builtin:572e342c-c920-4ef5-be2e-1ed3c6a51dc5",
+          "definitionName": "Configure App Service apps to disable local authentication for FTP deployments",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        },
+        {
+          "referenceId": "func-scm-basic-auth-fix",
+          "definition": "builtin:93059548-9cbe-4cdf-a2d1-63cc8db22550",
+          "definitionName": "Configure Function apps to disable local authentication for SCM sites",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        },
+        {
+          "referenceId": "func-ftp-basic-auth-fix",
+          "definition": "builtin:c7d3e3a0-533b-4ad2-9458-9b28f465ad36",
+          "definitionName": "Configure Function apps to disable local authentication for FTP deployments",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "nic_no_public_ip",
+      "title": "No public IPs on network interfaces",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Fewer hosts reachable from the internet. Custom copy because the built-in effect is fixed to Deny.",
+      "members": [
+        {
+          "referenceId": "nic-no-public-ip",
+          "definition": "custom:bastion-nic-no-public-ip",
+          "definitionName": "Bastion: network interfaces should not have public IPs",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_nic_no_public_ip')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "allowed_locations",
+      "title": "Allowed locations",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Governance. Resources stay in the regions the subscription allows.",
+      "members": [
+        {
+          "referenceId": "allowed-locations",
+          "definition": "builtin:e56962a6-4747-49cd-b67b-bf8b01975c4c",
+          "definitionName": "Allowed locations",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_allowed_locations')]",
+            "listOfAllowedLocations": "[parameters('listOfAllowedLocations')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "required_tags",
+      "title": "Required tags: owner, env, project",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Governance. Every resource has an owner and a purpose. Custom copy because the built-in effect is fixed to Deny.",
+      "members": [
+        {
+          "referenceId": "require-tag-owner",
+          "definition": "custom:bastion-require-tag",
+          "definitionName": "Bastion: require a tag on resources",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "tagName": "owner",
+            "effect": "[parameters('effect_required_tags')]"
+          }
+        },
+        {
+          "referenceId": "require-tag-env",
+          "definition": "custom:bastion-require-tag",
+          "definitionName": "Bastion: require a tag on resources",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "tagName": "env",
+            "effect": "[parameters('effect_required_tags')]"
+          }
+        },
+        {
+          "referenceId": "require-tag-project",
+          "definition": "custom:bastion-require-tag",
+          "definitionName": "Bastion: require a tag on resources",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "tagName": "project",
+            "effect": "[parameters('effect_required_tags')]"
+          }
+        }
+      ]
+    },
+    {
+      "control": "diagnostic_settings",
+      "title": "Diagnostic settings to law-huginn",
+      "allowedEffects": [
+        "DeployIfNotExists",
+        "AuditIfNotExists",
+        "Disabled"
+      ],
+      "auditEffect": "AuditIfNotExists",
+      "targetEffect": "DeployIfNotExists",
+      "fenrir": [
+        "D-01",
+        "X-08",
+        "X-14"
+      ],
+      "why": "Key Vault, NSG and blob logs reach Huginn's Sentinel workspace without anyone remembering to configure them.",
+      "members": [
+        {
+          "referenceId": "diag-keyvault",
+          "definition": "builtin:6b359d8f-f88d-4052-aa7c-32015963ecc1",
+          "definitionName": "Enable logging by category group for Key vaults (microsoft.keyvault/vaults) to Log Analytics",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_diagnostic_settings')]",
+            "logAnalytics": "[parameters('logAnalyticsWorkspaceId')]",
+            "categoryGroup": "allLogs",
+            "diagnosticSettingName": "bastion-to-law-huginn"
+          }
+        },
+        {
+          "referenceId": "diag-nsg",
+          "definition": "builtin:baa4c6de-b7cf-4b12-b436-6e40ef44c8cb",
+          "definitionName": "Enable logging by category group for Network security groups (microsoft.network/networksecuritygroups) to Log Analytics",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_diagnostic_settings')]",
+            "logAnalytics": "[parameters('logAnalyticsWorkspaceId')]",
+            "categoryGroup": "allLogs",
+            "diagnosticSettingName": "bastion-to-law-huginn"
+          }
+        },
+        {
+          "referenceId": "diag-blob",
+          "definition": "builtin:b4fe1a3b-0715-4c6c-a5ea-ffc33cf823cb",
+          "definitionName": "Configure diagnostic settings for Blob Services to Log Analytics workspace",
+          "definitionVersion": "4.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_diagnostic_settings')]",
+            "logAnalytics": "[parameters('logAnalyticsWorkspaceId')]",
+            "profileName": "bastion-to-law-huginn"
+          }
+        }
+      ]
+    }
+  ]
+}

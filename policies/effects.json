@@ -1,0 +1,13 @@
+{
+  "_comment": "Current effect of each bastion-baseline control. Phase 2 starts every control in its audit effect. Switch one control at a time (Phase 6), in its own commit, after reviewing the Audit compliance results. tests/policy runs a control's test only when its effect here is Deny.",
+  "storage_shared_key": "Audit",
+  "storage_public_network": "Audit",
+  "keyvault_public_network": "Audit",
+  "acr_admin_user": "Audit",
+  "appservice_basic_auth_audit": "AuditIfNotExists",
+  "appservice_basic_auth_fix": "Disabled",
+  "nic_no_public_ip": "Audit",
+  "allowed_locations": "Audit",
+  "required_tags": "Audit",
+  "diagnostic_settings": "AuditIfNotExists"
+}

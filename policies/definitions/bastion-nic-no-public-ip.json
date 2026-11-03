@@ -1,0 +1,43 @@
+{
+  "name": "bastion-nic-no-public-ip",
+  "properties": {
+    "displayName": "Bastion: network interfaces should not have public IPs",
+    "description": "Copy of the built-in 83a86a26-fd1f-447c-b59d-e51f44264114 (Network interfaces should not have public IPs, v1.0.0) with an effect parameter added. The built-in has a fixed Deny effect, which would break the Audit-first rule. The policy rule is unchanged.",
+    "mode": "Indexed",
+    "metadata": {
+      "category": "Network",
+      "version": "1.0.0",
+      "source": "built-in 83a86a26-fd1f-447c-b59d-e51f44264114 v1.0.0"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Audit, Deny or Disabled"
+        },
+        "allowedValues": ["Audit", "Deny", "Disabled"],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Network/networkInterfaces"
+          },
+          {
+            "not": {
+              "field": "Microsoft.Network/networkInterfaces/ipconfigurations[*].publicIpAddress.id",
+              "notLike": "*"
+            }
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

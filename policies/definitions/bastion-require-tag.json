@@ -1,0 +1,40 @@
+{
+  "name": "bastion-require-tag",
+  "properties": {
+    "displayName": "Bastion: require a tag on resources",
+    "description": "Copy of the built-in 871b6d14-10aa-478d-b590-94f262ecfa99 (Require a tag on resources, v1.0.1) with an effect parameter added. The built-in has a fixed Deny effect, which would break the Audit-first rule. The policy rule is unchanged.",
+    "mode": "Indexed",
+    "metadata": {
+      "category": "Tags",
+      "version": "1.0.0",
+      "source": "built-in 871b6d14-10aa-478d-b590-94f262ecfa99 v1.0.1"
+    },
+    "parameters": {
+      "tagName": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Tag name",
+          "description": "Name of the tag, such as 'owner'"
+        }
+      },
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Audit, Deny or Disabled"
+        },
+        "allowedValues": ["Audit", "Deny", "Disabled"],
+        "defaultValue": "Audit"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "field": "[concat('tags[', parameters('tagName'), ']')]",
+        "exists": "false"
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}
