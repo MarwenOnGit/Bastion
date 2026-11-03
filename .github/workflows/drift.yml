@@ -1,0 +1,85 @@
+name: drift
+
+# Nightly plan with the read-only identity. Red if Azure differs from Terraform
+# (terraform plan -detailed-exitcode returns 2). Scheduled runs use main.
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  TERRAFORM_VERSION: "1.17.1"
+
+jobs:
+  drift:
+    name: drift ${{ matrix.stack }}
+    if: vars.AZURE_PLAN_CLIENT_ID != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [governance, network, workload]
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_PLAN_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      BUDGET_ALERT_EMAIL: ${{ vars.BUDGET_ALERT_EMAIL }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      STACK: ${{ matrix.stack }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Budget email for the governance stack
+        if: matrix.stack == 'governance'
+        run: echo "TF_VAR_budget_alert_emails=$(jq -cn --arg e "$BUDGET_ALERT_EMAIL" '[$e]')" >> "$GITHUB_ENV"
+
+      - name: terraform init
+        run: terraform -chdir="infra/$STACK" init -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+
+      - name: Workload stack deployed?
+        id: deployed
+        run: |
+          # The workload stack is destroyed between demos. An empty state is not drift.
+          if [ "$STACK" = "workload" ] && [ -z "$(terraform -chdir=infra/workload state list 2>/dev/null)" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::workload stack is not deployed; nothing to compare."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: terraform plan -detailed-exitcode
+        if: steps.deployed.outputs.skip != 'true'
+        run: |
+          set +e
+          terraform -chdir="infra/$STACK" plan -lock=false -detailed-exitcode -no-color > plan.txt 2>&1
+          code=$?
+          set -e
+          {
+            echo "## drift: $STACK"
+            echo
+            echo '```'
+            head -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$code" in
+            0) echo "No drift." ;;
+            2) echo "::error::Drift detected in $STACK: Azure differs from Terraform."; exit 1 ;;
+            *) cat plan.txt; exit "$code" ;;
+          esac

@@ -1,0 +1,131 @@
+name: ci
+
+# Static checks on every push. No Azure access: no id-token, no identity, no state.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TERRAFORM_VERSION: "1.17.1"
+  TFLINT_VERSION: "0.55.0"
+  TFLINT_SHA256: "a2baead74dfcbcb4fade8ba6e1a7dd29b090edec2b8c6594c1e047d6a6487363"
+  CONFTEST_VERSION: "0.58.0"
+  CONFTEST_SHA256: "0863738f798c1850269a121ef56c2df1ab88074204c480f282f3baf2726898fd"
+  CHECKOV_VERSION: "3.4.3"
+
+jobs:
+  terraform:
+    name: fmt, validate, tflint
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -recursive -check -diff infra
+
+      - name: terraform validate
+        run: |
+          for s in bootstrap governance network workload; do
+            echo "::group::$s"
+            terraform -chdir="infra/$s" init -backend=false -input=false
+            terraform -chdir="infra/$s" validate
+            echo "::endgroup::"
+          done
+
+      - name: Install tflint (pinned, checksum verified)
+        run: |
+          curl -sSLfo /tmp/tflint.zip "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VERSION}/tflint_linux_amd64.zip"
+          echo "${TFLINT_SHA256}  /tmp/tflint.zip" | sha256sum -c -
+          unzip -q -o /tmp/tflint.zip -d /tmp/tflint
+          sudo install -m 0755 /tmp/tflint/tflint /usr/local/bin/tflint
+
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          for s in bootstrap governance network workload; do
+            echo "::group::$s"
+            tflint --chdir="infra/$s" --config "$GITHUB_WORKSPACE/.tflint.hcl"
+            echo "::endgroup::"
+          done
+
+  checkov:
+    name: checkov
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: checkov
+        run: |
+          python -m pip install --quiet "checkov==${CHECKOV_VERSION}"
+          checkov --directory infra --config-file .checkov.yaml --skip-download
+
+  opa:
+    name: conftest verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install conftest (pinned, checksum verified)
+        run: |
+          curl -sSLfo /tmp/conftest.tgz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          echo "${CONFTEST_SHA256}  /tmp/conftest.tgz" | sha256sum -c -
+          tar -xzf /tmp/conftest.tgz -C /tmp conftest
+          sudo install -m 0755 /tmp/conftest /usr/local/bin/conftest
+
+      - name: conftest verify
+        run: conftest verify --policy opa
+
+  static:
+    name: static tests and shellcheck
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: shellcheck
+        run: shellcheck -x tests/policy/*.sh
+
+      - name: pytest
+        run: |
+          python -m pip install --quiet pytest==8.3.4 pyyaml==6.0.2
+          python -m pytest -q tests/static

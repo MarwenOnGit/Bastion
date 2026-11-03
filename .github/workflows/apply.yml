@@ -1,0 +1,109 @@
+name: apply
+
+# Manual only. One stack at a time. Runs in the bastion-apply environment, which
+# requires your approval and only accepts the main branch. The bastion-github-apply
+# identity trusts nothing but jobs in that environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: Stack to change
+        type: choice
+        options: [governance, network, workload]
+        required: true
+      operation:
+        description: apply (create or update) or destroy (teardown)
+        type: choice
+        options: [apply, destroy]
+        default: apply
+        required: true
+      confirm:
+        description: For destroy, type the stack name again
+        type: string
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: apply
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: "1.17.1"
+  CONFTEST_VERSION: "0.58.0"
+  CONFTEST_SHA256: "0863738f798c1850269a121ef56c2df1ab88074204c480f282f3baf2726898fd"
+
+jobs:
+  apply:
+    name: ${{ inputs.operation }} ${{ inputs.stack }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: bastion-apply
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_USE_AZUREAD: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_APPLY_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+      BUDGET_ALERT_EMAIL: ${{ vars.BUDGET_ALERT_EMAIL }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      STACK: ${{ inputs.stack }}
+      OPERATION: ${{ inputs.operation }}
+      CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - name: Check destroy confirmation
+        if: inputs.operation == 'destroy'
+        run: |
+          if [ "$CONFIRM" != "$STACK" ]; then
+            echo "::error::To destroy, type the stack name ($STACK) in the confirm input."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Install conftest (pinned, checksum verified)
+        run: |
+          curl -sSLfo /tmp/conftest.tgz "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          echo "${CONFTEST_SHA256}  /tmp/conftest.tgz" | sha256sum -c -
+          tar -xzf /tmp/conftest.tgz -C /tmp conftest
+          sudo install -m 0755 /tmp/conftest /usr/local/bin/conftest
+
+      - name: Budget email for the governance stack
+        if: inputs.stack == 'governance'
+        run: echo "TF_VAR_budget_alert_emails=$(jq -cn --arg e "$BUDGET_ALERT_EMAIL" '[$e]')" >> "$GITHUB_ENV"
+
+      - name: terraform init
+        run: terraform -chdir="infra/$STACK" init -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+
+      - name: terraform plan
+        run: |
+          extra=""
+          if [ "$OPERATION" = "destroy" ]; then extra="-destroy"; fi
+          terraform -chdir="infra/$STACK" plan $extra -out=tfplan
+          terraform -chdir="infra/$STACK" show -json tfplan > "infra/$STACK/tfplan.json"
+          {
+            echo "## $OPERATION $STACK"
+            echo
+            echo '```'
+            terraform -chdir="infra/$STACK" show -no-color tfplan | head -c 60000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: conftest gate
+        run: conftest test --policy opa --no-color "infra/$STACK/tfplan.json"
+
+      - name: terraform apply
+        run: terraform -chdir="infra/$STACK" apply tfplan
