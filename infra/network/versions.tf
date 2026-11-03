@@ -23,5 +23,9 @@ provider "azurerm" {
   tenant_id           = var.tenant_id
   storage_use_azuread = true
 
+  # CI identities cannot register resource providers. The bootstrap registers
+  # every namespace Bastion needs, so the provider must not try.
+  resource_provider_registrations = "none"
+
   features {}
 }

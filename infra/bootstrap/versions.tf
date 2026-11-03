@@ -26,6 +26,25 @@ provider "azurerm" {
   tenant_id           = var.tenant_id
   storage_use_azuread = true
 
+  # Register every namespace the other stacks and the policy tests use, so the CI
+  # identities (which cannot register providers) never need to.
+  resource_provider_registrations = "core"
+  resource_providers_to_register = [
+    "Microsoft.Consumption",
+    "Microsoft.CostManagement",
+    "Microsoft.ContainerRegistry",
+    "Microsoft.Insights",
+    "Microsoft.KeyVault",
+    "Microsoft.ManagedIdentity",
+    "Microsoft.Management",
+    "Microsoft.Network",
+    "Microsoft.OperationalInsights",
+    "Microsoft.PolicyInsights",
+    "Microsoft.Security",
+    "Microsoft.Storage",
+    "Microsoft.Web",
+  ]
+
   features {}
 }
 
