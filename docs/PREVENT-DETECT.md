@@ -18,9 +18,10 @@ Status words:
   2026-11-03.
 
 Most of the important controls work by **RBAC, not Policy**. Azure Policy cannot block an
-action such as Run Command, exec, `listKeys` or `listCredentials` (ADR
-[0008](adr/0008-rbac-for-actions-policy-cannot-block.md)). Policy can only make the result
-of some of them useless.
+action such as Run Command, exec, `listKeys` or `listCredentials`: its Deny effect only
+judges create and update requests, and its DenyAction effect only supports `delete` (ADR
+[0008](adr/0008-rbac-for-actions-policy-cannot-block.md)). Policy can make the result of some
+actions useless, and it can make the *target* impossible to create.
 
 Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir lab
 (`fenrir-lab-prod-rg`) nothing is prevented, by design.
@@ -51,7 +52,7 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 | X-05 | Same reads as E-14 to E-27 | Limits (designed), as above | none possible | Blind spot |
 | X-06 | Graph `GET /servicePrincipals` for the whole tenant | No | `graph-directory-recon` (not validated) | Needs P1/P2 for Graph activity logs |
 | X-07 | RBAC permission preflight | No | none possible | Blind spot |
-| X-08 | VM Run Command | **Prevents (designed), by RBAC:** no VMs in the always-on design; Bastion VM Operator excludes `runCommand`, `runCommands/write` and `extensions/write`; no standing Contributor. Policy cannot block it | `vm-runcommand-by-user` **validated** 2026-11-03; `fenrir-chain` validated | A principal with Contributor (including you, and the apply identity during an approved run) can still do it |
+| X-08 | VM Run Command | **Prevents (designed):** `denied_resource_types` stops any VM from being created in the Bastion groups, so there is no target. If a VM is ever allowed, RBAC takes over: Bastion VM Operator excludes `runCommand`, `runCommands/write` and `extensions/write`, and no one has a standing Contributor. Policy cannot block the action itself | `vm-runcommand-by-user` **validated** 2026-11-03; `fenrir-chain` validated | A principal with Contributor (including you, and the apply identity during an approved run) can still do it |
 | X-09 | Run Command status polling | Follows X-08 | none | Blind spot (read) |
 | X-10 | List App Service publishing credentials | **Limits (designed):** `appservice_basic_auth_fix` turns SCM and FTP basic auth off, so the credentials stop working. Bastion VM Operator excludes `config/list`. Policy cannot block the list action | `appservice-publish-creds` (not validated) | The list call still succeeds for Contributor. There is a window between app creation and remediation. The fix control starts Disabled (ADR 0003) |
 | X-11 | Kudu `/api/command` with Basic auth | **Prevents (designed)** once basic auth is off for SCM (verify in Azure) | `appservice-publish-creds` optional join, needs App Service diagnostic settings | Bastion's diagnostic-settings control does not cover App Service yet (roadmap) |
@@ -68,16 +69,52 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 | P-01 to P-11 | Reads as the managed identity (subscriptions, groups, resources, permissions, storage accounts, registries) | Limits: least-privilege managed identity, as X-19 to X-21 | none possible | Blind spot |
 | P-12 | Storage `listKeys` | **Prevents the use (designed):** `storage_shared_key` (Deny target) means the keys cannot authenticate; every Bastion account sets `shared_access_key_enabled = false` (conftest and pytest check it). Policy cannot block `listKeys` itself | `storage-keys-listed` **partly validated** (branch C) 2026-11-03; `mi-control-plane-new-ip` (new) | `listKeys` still returns keys to a principal with the right role; they are just useless. Branch A needs the purple-team run |
 | P-13 | ACR `listCredentials` | **Prevents the use (designed):** `acr_admin_user` (Deny target); conftest rejects `admin_enabled = true` | `acr-admin-creds-listed` (new, not validated) | Same as P-12 |
-| D-01 | Blob listing and download (account key or OAuth) | **Prevents (designed):** shared key off (no key auth) and `storage_public_network` (Deny target), so the operator's machine has no network path even with an OAuth token | `StorageBlobLogs` reach `law-huginn` through `diagnostic_settings` once it is DeployIfNotExists; no Huginn rule yet | A principal inside the VNet with a data role can still read |
+| D-01 | Blob listing and download (account key or OAuth) | **Prevents (designed):** shared key off (no key auth), `storage_public_network` (no path from the operator's machine, even with an OAuth token), `storage_blob_public_access` (no anonymous containers), `storage_secure_transfer` and `storage_min_tls` (no clear text, no old TLS) | `StorageBlobLogs` reach `law-huginn` through `diagnostic_settings` once it is DeployIfNotExists; no Huginn rule yet | A principal inside the VNet with a data role can still read. With shared keys off, account and service SAS stop working, but a user delegation SAS (signed with Entra ID) still works for anyone with the role to create one |
 | D-02 | File share listing and download | Same as D-01 | `StorageFileLogs`: not in Bastion's diagnostic settings (blob only) | No file log collection |
 | D-03 | ACR token exchange, catalog, image pull | Prevents admin-credential use (designed); no registry exists in Bastion | out of scope in Huginn | No registry logs |
+
+## Defence evasion: deleting the logs
+
+Fenrir does not do this, but the next step for an attacker who has Contributor is often to
+delete diagnostic settings, so the actions that follow leave no trace in Sentinel.
+`protect_diagnostic_settings` (DenyAction, from the Azure Landing Zones
+`DenyAction-DiagnosticLogs` definition) refuses any delete of a diagnostic setting in the
+Bastion groups. The subscription Activity log export belongs to Huginn and is outside
+Bastion's scope.
+
+## Every prevented attempt is also a detection
+
+Huginn exports the subscription Activity log, including the **Policy** category, to
+`law-huginn`. When `bastion-baseline` denies a request, Azure writes a Policy event with
+operation `Microsoft.Authorization/policies/deny/action`, and the assignment name in
+`properties.policies` (Activity log schema, "Policy category"). So a blocked attempt is not
+silent. This query lists denials by Bastion, with who tried and what (verify field names
+in `law-huginn`; the `Properties_d` layout can differ between workspaces):
+
+```kusto
+AzureActivity
+| where TimeGenerated > ago(7d)
+| where CategoryValue == "Policy"
+| where OperationNameValue =~ "Microsoft.Authorization/policies/deny/action"
+| extend policies = parse_json(tostring(Properties_d.policies))
+| mv-expand policy = policies
+| where tostring(policy.policyAssignmentName) == "bastion-baseline"
+| project TimeGenerated, Caller, CallerIpAddress, ResourceGroup, _ResourceId,
+          Reference = tostring(policy.policyDefinitionReferenceId)
+| order by TimeGenerated desc
+```
+
+The policy tests produce these events every night on purpose, as `bastion-policy-tester`.
+A Huginn rule built on this query should exclude that caller, and alert on denials by
+anyone else, especially a managed identity (Fenrir's post-exploit caller). That rule
+belongs in Huginn, not here; this is the hand-off.
 
 ## Summary
 
 | | Count |
 |---|---|
 | Fenrir operations in the inventory | 66 (plus D-01 to D-03) |
-| Prevented or made useless by a Bastion control (designed, not yet proven) | X-08, X-11, X-14, P-12, P-13, D-01, D-02, D-03 |
+| Prevented or made useless by a Bastion control (designed, not yet proven) | X-08 (no VM can exist), X-11, X-14, P-12, P-13, D-01, D-02, D-03 |
 | Limited by least privilege | E-14 to E-27, X-05, X-10, X-13, X-15 to X-21, P-01 to P-11 |
 | Detected by a validated Huginn rule | X-08, X-13, P-12 (partly) |
 | Neither prevented nor detected | A-01 to A-05 (no P1 licence), E-01 to E-13, X-01 to X-04, X-06, X-07, X-09, X-12 |

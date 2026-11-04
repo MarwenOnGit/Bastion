@@ -14,7 +14,7 @@ flowchart TB
   mg --> sb["bastion-sandbox"]
   root --> sub["Subscription 42146134-... (Azure for Students)<br/>stays under the root unless moved (ADR 0001)"]
 
-  sub --> defs["Policy definitions at subscription scope<br/>bastion-baseline initiative + 2 custom definitions"]
+  sub --> defs["Policy definitions at subscription scope<br/>bastion-baseline initiative (21 controls)<br/>23 built-ins + 6 custom definitions"]
   sub --> budget["Budget bastion-monthly<br/>50% / 80% / 100% actual, 100% forecast"]
   sub --> cspm["Defender for Cloud<br/>foundational CSPM (Free)"]
 
@@ -90,6 +90,13 @@ Azure's defaults (`AllowVnetInBound`, `AllowInternetOutBound`).
 
 The PE subnet sets `private_endpoint_network_policies = "Enabled"` so these NSG rules
 actually apply to private endpoint traffic.
+
+Subnets are declared inline in each VNet with their NSG (`security_group`), not as separate
+`azurerm_subnet` resources. A separate subnet is created first and associated with its NSG
+afterwards, and in between it would violate the `subnet_nsg` control (Azure Landing Zones
+`Deny-Subnet-Without-Nsg`). Every subnet also sets `default_outbound_access_enabled = false`
+(the `subnet_private` control), so nothing in it can reach the internet through Azure's
+implicit outbound IP.
 
 Two things to know:
 

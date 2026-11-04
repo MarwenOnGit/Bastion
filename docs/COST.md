@@ -35,7 +35,8 @@ The budget (default $20 a month, `budget_amount` in `infra/governance`) alerts a
 and 100% of actual cost and at 100% of forecast. A budget only alerts; it never stops
 anything. It covers the whole subscription, including Huginn and Fenrir.
 
-Never deployed (see ADR [0007](adr/0007-no-firewall-gateway-or-azure-bastion-service.md)):
+Never deployed (see ADR [0007](adr/0007-no-firewall-gateway-or-azure-bastion-service.md)), and
+blocked in the Bastion groups by the `denied_resource_types` control once it is Deny:
 Azure Firewall, the Azure Bastion service, VPN or ExpressRoute gateways, DDoS Network
 Protection, Application Gateway, paid Defender plans, VMs.
 
@@ -48,6 +49,14 @@ needs your approval:
 2. stack `network`, operation `destroy`, confirm `network`
 3. stack `governance`, operation `destroy`, confirm `governance`
 
+The governance destroy removes the policy assignments first, which also turns off the two
+DenyAction controls. Then delete the policy-test canary (it is not in Terraform state, and
+while `delete_protection` was on it could not be deleted):
+
+```bash
+az identity delete --resource-group bastion-test-rg --name id-bastion-canary
+```
+
 Then on your laptop:
 
 ```bash
@@ -59,6 +68,9 @@ Notes:
 - The Key Vault has purge protection. After destroy it stays soft-deleted for 7 days (no
   charge) and its name cannot be reused until then. A new apply recovers it automatically.
 - The bootstrap destroy removes the state account, so destroy the other stacks first.
+- If the bootstrap destroy is refused with a 403 from `bastion-baseline`, the governance
+  stack is still applied: `delete_protection` protects `id-bastion-policy`. Destroy
+  governance first.
 - If GitHub is unavailable, the same teardown works locally after `az login`:
 
   ```bash

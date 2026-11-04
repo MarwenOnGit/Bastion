@@ -53,6 +53,14 @@ terraform -chdir=infra/bootstrap plan -out=bootstrap.tfplan
 terraform -chdir=infra/bootstrap apply bootstrap.tfplan
 ```
 
+Then record the provider checksums for every stack and commit the lock files. HashiCorp
+recommends committing `.terraform.lock.hcl`; the build session could not create them
+because the Terraform registry was blocked there. Include the runner's platform and yours:
+
+```bash
+for s in bootstrap governance network workload; do terraform -chdir=infra/$s providers lock -platform=linux_amd64 -platform=darwin_arm64 -platform=windows_amd64; done
+```
+
 The state stays in `infra/bootstrap/terraform.tfstate` (git-ignored). Back it up
 somewhere private. It holds no secrets.
 
@@ -121,22 +129,22 @@ Actions > apply > Run workflow on `main`, then approve the `bastion-apply` deplo
 
 ## 7. Audit results (Phase 6 input)
 
-Wait for a compliance scan (up to 24 hours) or start one:
+The nightly `drift` workflow publishes a compliance report (per control, with every
+non-compliant resource) in its job summary. To get one now, run Actions > drift > Run
+workflow, or locally (the `--scan` flag starts a fresh evaluation first, which can take
+several minutes):
 
 ```bash
-for rg in bastion-hub-rg bastion-spoke-app-rg bastion-test-rg; do az policy state trigger-scan --resource-group "$rg" --no-wait; done
+tests/policy/compliance-report.sh --scan
 ```
 
-Then collect the results to paste back:
-
-```bash
-for rg in bastion-hub-rg bastion-spoke-app-rg bastion-test-rg; do echo "== $rg"; az policy state summarize --resource-group "$rg" --query "policyAssignments[].policyDefinitions[].{ref:policyDefinitionReferenceId, nonCompliant:results.nonCompliantResources}" -o table; done
-```
+Paste the report back to start Phase 6.
 
 ## 8. Policy tests
 
 Actions > policy-tests > Run workflow on `main`. With every control in Audit, all tests
-are skipped (expected). To see a red run on purpose, set `force_control` to
+are skipped (expected). The first run with `delete_protection` enforced creates the free
+canary identity `id-bastion-canary` in `bastion-test-rg`; it stays there on purpose. To see a red run on purpose, set `force_control` to
 `storage_shared_key`: the test creates the account (because Audit does not block), fails,
 and deletes it.
 

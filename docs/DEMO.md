@@ -38,7 +38,8 @@ Audit.
 
 ## 3:00 to 4:00: the compliance view
 
-Azure portal > Policy > Compliance > `Bastion baseline (bastion-spoke-app-rg)`.
+Azure portal > Policy > Compliance > `Bastion baseline (bastion-spoke-app-rg)`, or the
+compliance report in the last `drift` run's summary.
 
 - Controls still in Audit show their non-compliant resources here instead of blocking.
 - Diagnostic settings: after the switch to DeployIfNotExists, the Key Vault has a setting
@@ -52,6 +53,8 @@ Open [PREVENT-DETECT.md](PREVENT-DETECT.md).
   keys off), Huginn's `storage-keys-listed` still alerts on the attempt.
 - Walk X-08: Policy cannot block Run Command, so Bastion uses RBAC (Bastion VM Operator),
   and Huginn's `vm-runcommand-by-user` catches anyone who still has Contributor.
+- Show that a blocked attempt is also a detection: the KQL in PREVENT-DETECT lists the
+  denials from the policy tests in `law-huginn`.
 - End on the gaps: no Entra ID P1, so no Conditional Access, PIM or sign-in logs. Said
   plainly, with the fix (licence) named.
 

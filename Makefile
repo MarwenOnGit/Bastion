@@ -1,12 +1,12 @@
 # Bastion landing zone: local developer targets.
-# None of these targets talk to Azure, except bootstrap-plan, which you run on your laptop
-# after `az login`.
+# None of these targets talk to Azure, except bootstrap-plan and compliance, which you run
+# on your laptop after `az login`.
 
 STACKS      := governance network workload
 ALL_STACKS  := bootstrap $(STACKS)
 TF          ?= terraform
 
-.PHONY: help fmt fmt-check validate lint checkov opa test static docs bootstrap-plan bootstrap-apply clean
+.PHONY: help fmt fmt-check validate lint checkov opa test static docs compliance bootstrap-plan bootstrap-apply clean
 
 help:
 	@echo "fmt            terraform fmt -recursive"
@@ -18,6 +18,7 @@ help:
 	@echo "static         pytest tests/static"
 	@echo "test           fmt-check + lint + checkov + opa + static"
 	@echo "docs           documentation checks (no em dashes, links to existing files)"
+	@echo "compliance     bastion-baseline compliance report (read-only, needs az login)"
 	@echo "bootstrap-plan terraform plan for infra/bootstrap (run on your laptop, needs az login)"
 
 fmt:
@@ -53,6 +54,9 @@ docs:
 	python3 -m pytest -q tests/static/test_docs.py
 
 test: fmt-check lint checkov opa static
+
+compliance:
+	tests/policy/compliance-report.sh
 
 bootstrap-plan:
 	$(TF) -chdir=infra/bootstrap init -input=false
