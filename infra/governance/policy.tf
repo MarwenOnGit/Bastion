@@ -154,7 +154,7 @@ resource "azurerm_resource_group_policy_assignment" "baseline" {
 
 # Optional: report-only view of the whole subscription. Every effect is its audit
 # effect, and every protected group is excluded, so this cannot block or change
-# anything in the Huginn, Fenrir or CTF groups. The policy identity only has roles
+# anything in the Huggin, Fenrir or CTF groups. The policy identity only has roles
 # on Bastion groups, so even a misconfigured DeployIfNotExists could not deploy
 # anywhere else.
 resource "azurerm_subscription_policy_assignment" "audit_only" {

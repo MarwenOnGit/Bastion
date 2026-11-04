@@ -81,7 +81,7 @@ variable "enable_subscription_audit" {
 }
 
 variable "huginn_workspace_id" {
-  description = "Resource ID of Huginn's Log Analytics workspace (law-huginn). Built from names; no data source, so no listKeys call is ever made."
+  description = "Resource ID of Huggin's Log Analytics workspace (law-huginn). Built from names; no data source, so no listKeys call is ever made."
   type        = string
   default     = "/subscriptions/42146134-9464-4c2d-86b0-afe414704284/resourceGroups/huginn-sentinel-rg/providers/Microsoft.OperationalInsights/workspaces/law-huginn"
 }

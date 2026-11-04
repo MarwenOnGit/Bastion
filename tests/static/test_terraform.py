@@ -119,9 +119,9 @@ def test_protected_groups_in_governance_defaults():
 
 def test_protected_groups_never_targeted():
     """No resource is placed in a protected group; the only reference allowed is the
-    Huginn workspace ID (diagnostic target) and the exclusion list."""
+    Huggin workspace ID (diagnostic target) and the exclusion list."""
     for p in tf_files():
-        if p.name == "variables.tf":  # the Huginn workspace reference lives in a variable default
+        if p.name == "variables.tf":  # the Huggin workspace reference lives in a variable default
             continue
         for line in p.read_text().splitlines():
             if re.search(r"resource_group_name\s*=", line):

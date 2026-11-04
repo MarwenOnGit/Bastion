@@ -8,7 +8,7 @@ description: "How I built a small Azure landing zone in Terraform on one Azure f
 
 # Bastion: a secure-by-design Azure landing zone on a student subscription
 
-*Bastion prevents, Huginn detects.*
+*Bastion prevents, Huggin detects.*
 
 > **Status, honestly:** everything in this post is written, statically tested and runs in
 > CI. Nothing is deployed to Azure yet, and nothing is "enforced" until a policy test has
@@ -46,12 +46,12 @@ Design" approach. I already had two projects:
 - **Fenrir**, my own tool that finds and walks managed-identity attack paths in Azure:
   enumerate what a user can reach, run commands on a VM to steal its identity's token,
   then use that token to list storage keys or registry credentials.
-- **Huginn**, Microsoft Sentinel detections for Fenrir's telemetry, deployed with
+- **Huggin**, Microsoft Sentinel detections for Fenrir's telemetry, deployed with
   Terraform and validated with benign replays.
 
-Huginn answers "would we see it?". The missing piece was "could we have stopped it?".
+Huggin answers "would we see it?". The missing piece was "could we have stopped it?".
 Bastion is that piece. For every one of Fenrir's 66 operations, the repository says
-whether Bastion prevents it, Huginn detects it, or neither. The "neither" rows are the
+whether Bastion prevents it, Huggin detects it, or neither. The "neither" rows are the
 most useful part.
 
 ## The constraints that shaped everything
@@ -79,7 +79,7 @@ areas. Here is how Bastion covers each one, compressed. The full comparison is i
 | Resource organization | `bastion` > `platform`, `landing-zones`, `sandbox`; resource groups as subscriptions |
 | Network topology | Hub and spoke, private DNS in the hub, private endpoints, NSG on every subnet |
 | Security | Defender for Cloud free tier, every control mapped to MCSB v2 |
-| Management | Logs to Huginn's workspace by policy; diagnostic settings cannot be deleted |
+| Management | Logs to Huggin's workspace by policy; diagnostic settings cannot be deleted |
 | Governance | 21 policy controls, built-ins first, Audit first, tested |
 | Platform automation | Terraform, GitHub Actions, approvals, nightly drift and compliance |
 
@@ -108,8 +108,8 @@ flowchart LR
       kv["Key Vault<br/>no public access, RBAC"]
     end
     test["bastion-test-rg<br/>policy tests"]
-    law["law-huginn (Huginn)<br/>Sentinel"]
-    labs["Fenrir, Huginn, CTF groups<br/>never touched"]
+    law["law-huginn (Huggin)<br/>Sentinel"]
+    labs["Fenrir, Huggin, CTF groups<br/>never touched"]
   end
   hub <-- peering --> spoke
   spoke -- private endpoints --> st
@@ -168,7 +168,7 @@ the `groupNames` that Microsoft itself puts in the MCSB v2 initiative:
 | Network | NSG on every subnet, no default outbound, no NIC public IP, no SSH/RDP from the internet | NS-1 |
 | Cost and exposure | no firewalls, gateways, Azure Bastion service, DDoS plans, public IPs or VMs | none |
 | Governance | allowed locations, required tags | none |
-| Logging | diagnostic settings to Huginn's workspace, and they cannot be deleted | LT-4 |
+| Logging | diagnostic settings to Huggin's workspace, and they cannot be deleted | LT-4 |
 
 "None" is an honest answer: MCSB v2 does not include that definition. It does not mean
 the control is unrelated to security.
@@ -189,7 +189,7 @@ effect parameters instead, for three reasons:
    parameter is the only per-control switch.
 2. **Visibility.** Learn's table for enforcement modes says `DoNotEnforce` writes **no
    Activity log entry**. The Audit effect does
-   (`Microsoft.Authorization/policies/audit/action`), and Huginn already collects that
+   (`Microsoft.Authorization/policies/audit/action`), and Huggin already collects that
    category. My Audit phase is visible in Sentinel.
 3. **Two built-ins cannot start in Audit at all.** "Network interfaces should not have
    public IPs" and "Require a tag on resources" have their effect hard-coded to Deny. I
@@ -379,10 +379,10 @@ run again: green.
 
 ## Prevent and detect
 
-Fenrir's footprint, Huginn's detections and Bastion's controls fit together like this
+Fenrir's footprint, Huggin's detections and Bastion's controls fit together like this
 (three examples out of 66 rows):
 
-| Fenrir step | Bastion | Huginn | Gap |
+| Fenrir step | Bastion | Huggin | Gap |
 |---|---|---|---|
 | VM Run Command (X-08) | No VM can be created; if one is allowed, the custom role cannot run commands | `vm-runcommand-by-user`, validated | Anyone with Contributor, including me |
 | Storage `listKeys` (P-12) | Keys are useless: shared key access is off | `storage-keys-listed`, partly validated | Policy cannot stop the call itself |
@@ -391,9 +391,9 @@ Fenrir's footprint, Huginn's detections and Bastion's controls fit together like
 One more connection I only noticed while reading the Activity log schema: **every denial
 is also a detection.** When `bastion-baseline` denies a request, Azure writes a Policy
 event (`Microsoft.Authorization/policies/deny/action`) with the assignment name in
-`properties.policies`, and Huginn already collects that category. A blocked attempt by a
+`properties.policies`, and Huggin already collects that category. A blocked attempt by a
 stolen managed identity is not silent. The query is in the repository; the Sentinel rule
-belongs in Huginn.
+belongs in Huggin.
 
 The biggest gap is identity. Without Entra ID P1/P2 there is no Conditional Access to
 block device code sign-ins, no PIM to make my Owner role just-in-time, and no sign-in or
@@ -442,9 +442,9 @@ growing into the real thing is a mapping exercise, not a rewrite.
 
 1. Deploy it, read the Audit results, and move controls to Deny one at a time, each with
    its test turning green. I will update this post with the real runs.
-2. A Huginn rule on Bastion's policy denials.
+2. A Huggin rule on Bastion's policy denials.
 3. Diagnostic settings for App Service and file shares.
-4. With an Entra ID P1 licence: Conditional Access, PIM, and sign-in logs into Huginn.
+4. With an Entra ID P1 licence: Conditional Access, PIM, and sign-in logs into Huggin.
 
 ## References
 
@@ -486,5 +486,5 @@ Other sources:
 My projects:
 
 - [Bastion](https://github.com/MarwenOnGit/Bastion), this landing zone
-- [Huginn](https://github.com/MarwenOnGit/Huggin), Sentinel detections
+- [Huggin](https://github.com/MarwenOnGit/Huggin), Sentinel detections
 - [Fenrir](https://github.com/MarwenOnGit/fenrir), the attack-path tool

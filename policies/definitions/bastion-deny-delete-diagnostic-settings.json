@@ -2,7 +2,7 @@
   "name": "bastion-deny-delete-diagnostic-settings",
   "properties": {
     "displayName": "Bastion: block deletion of diagnostic settings",
-    "description": "Copy of the Azure Landing Zones policy DenyAction-DiagnosticLogs with an effect parameter added (the original has a fixed denyAction effect). Stops anyone, including an attacker with Contributor, from deleting diagnostic settings to blind Huginn. DenyAction supports only the delete action.",
+    "description": "Copy of the Azure Landing Zones policy DenyAction-DiagnosticLogs with an effect parameter added (the original has a fixed denyAction effect). Stops anyone, including an attacker with Contributor, from deleting diagnostic settings to blind Huggin. DenyAction supports only the delete action.",
     "mode": "Indexed",
     "metadata": {
       "category": "Monitoring",

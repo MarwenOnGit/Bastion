@@ -12,7 +12,7 @@ Open [ARCHITECTURE.md](ARCHITECTURE.md).
 - "Bastion is a small landing zone: governance, hub and spoke, private PaaS access, least
   privilege, and a pipeline that proves the guardrails by trying to break them."
 - Point at the governance diagram: one subscription, so resource groups play the role of
-  subscriptions (ADR 0001). Real effects only on Bastion groups; Huginn, Fenrir and CTF
+  subscriptions (ADR 0001). Real effects only on Bastion groups; Huggin, Fenrir and CTF
   groups are excluded (ADR 0002).
 - Point at the network diagram: no public IP anywhere, data services only through private
   endpoints, reserved ranges where a firewall and gateway would go.
@@ -43,16 +43,16 @@ compliance report in the last `drift` run's summary.
 
 - Controls still in Audit show their non-compliant resources here instead of blocking.
 - Diagnostic settings: after the switch to DeployIfNotExists, the Key Vault has a setting
-  named `bastion-to-law-huginn`, so its logs land in Huginn's Sentinel workspace.
+  named `bastion-to-law-huginn`, so its logs land in Huggin's Sentinel workspace.
 
 ## 4:00 to 5:00: prevent and detect
 
 Open [PREVENT-DETECT.md](PREVENT-DETECT.md).
 
-- "Bastion prevents, Huginn detects." Walk P-12: Bastion makes `listKeys` useless (shared
-  keys off), Huginn's `storage-keys-listed` still alerts on the attempt.
+- "Bastion prevents, Huggin detects." Walk P-12: Bastion makes `listKeys` useless (shared
+  keys off), Huggin's `storage-keys-listed` still alerts on the attempt.
 - Walk X-08: Policy cannot block Run Command, so Bastion uses RBAC (Bastion VM Operator),
-  and Huginn's `vm-runcommand-by-user` catches anyone who still has Contributor.
+  and Huggin's `vm-runcommand-by-user` catches anyone who still has Contributor.
 - Show that a blocked attempt is also a detection: the KQL in PREVENT-DETECT lists the
   denials from the policy tests in `law-huginn`.
 - End on the gaps: no Entra ID P1, so no Conditional Access, PIM or sign-in logs. Said

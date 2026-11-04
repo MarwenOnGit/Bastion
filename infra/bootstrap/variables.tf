@@ -66,7 +66,7 @@ variable "plan_on_pull_requests" {
 }
 
 variable "huginn_workspace" {
-  description = "Huginn's Log Analytics workspace. Bastion only reads its ID and, if allowed below, grants the policy identity a role on it."
+  description = "Huggin's Log Analytics workspace. Bastion only reads its ID and, if allowed below, grants the policy identity a role on it."
   type = object({
     resource_group_name = string
     name                = string

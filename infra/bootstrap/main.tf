@@ -100,7 +100,7 @@ resource "azurerm_role_assignment" "operator_state" {
   description          = "Bastion bootstrap operator: state access"
 }
 
-# Who read or wrote Terraform state ends up in Huginn's workspace (StorageBlobLogs).
+# Who read or wrote Terraform state ends up in Huggin's workspace (StorageBlobLogs).
 resource "azurerm_monitor_diagnostic_setting" "tfstate_blob" {
   name                       = "bastion-to-law-huginn"
   target_resource_id         = "${azurerm_storage_account.tfstate.id}/blobServices/default"

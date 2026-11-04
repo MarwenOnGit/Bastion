@@ -51,7 +51,7 @@ Nothing else. It cannot read or change any other group.
   scope. CI can never create a role assignment, so it can never grant itself more.
 - No Microsoft Graph permission. App registrations and federated credentials are changed
   only by the bootstrap.
-- No rights on the protected groups (Huginn, Fenrir, CTF), apart from Reader at
+- No rights on the protected groups (Huggin, Fenrir, CTF), apart from Reader at
   subscription scope, which every read-only plan needs.
 
 ### Things moved into the bootstrap because of this

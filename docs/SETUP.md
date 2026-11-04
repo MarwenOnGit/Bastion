@@ -30,6 +30,11 @@ az login --tenant 972afa9f-85f2-4581-81c4-a126c475a06d
 az account set --subscription 42146134-9464-4c2d-86b0-afe414704284
 ```
 
+- Huggin's `sentinel` stack applied, so `law-huginn` exists in `huginn-sentinel-rg`.
+  Bastion builds the workspace ID from names and does not check it: the role assignment
+  in step 2 fails if the workspace is missing, and the diagnostic-settings controls
+  point at nothing. If you ever run `make destroy` in Huggin, Bastion's logs stop
+  arriving until the workspace is back.
 - Creating management groups under the Tenant Root Group: if the hierarchy settings
   require write access on the root, elevate access first (Entra ID > Properties > Access
   management for Azure resources > Yes), and turn it off again after step 2.
@@ -65,6 +70,38 @@ The state stays in `infra/bootstrap/terraform.tfstate` (git-ignored). Back it up
 somewhere private. It holds no secrets.
 
 Commit the generated `infra/shared/bootstrap.json` (non-secret IDs) on `bastion-dev`.
+
+### Register Bastion's pipelines with Huggin
+
+Two things Bastion's CI does nightly look like Fenrir to Huggin's rules:
+
+- **`listKeys` on every plan.** The azurerm provider (4.81) calls
+  `Microsoft.Storage/storageAccounts/listKeys/action` each time it reads a storage
+  account, even with shared keys off, and ignores a 403. The Reader identity
+  `bastion-github-plan` (`plan.yml`, `drift.yml`) and `bastion-github-apply` therefore
+  write `listKeys` rows (failed or not) for the state account and the workload account.
+  Huggin's `storage-keys-listed` would raise them as new caller and account pairs.
+- **Policy denials on purpose.** `bastion-policy-tester` triggers denials in
+  `bastion-test-rg` every night. Huggin's `bastion-policy-denial` rule must not alert on them.
+
+In the Huggin repository, set `bastion_identities` in
+`infra/sentinel/huginn.auto.tfvars.json` and apply Huggin's `sentinel` stack. Huggin then
+generates watchlist rows for exactly these operations: `listKeys` for plan and apply on
+`bastion-*` groups, policy denials for the tester on `bastion-test-rg`. This prints the
+value from `infra/shared/bootstrap.json`:
+
+```bash
+jq --arg exp "$(date -u -d '+180 days' +%Y-%m-%d)" '{bastion_identities: {
+  plan_object_id: .identities.plan.object_id,
+  apply_object_id: .identities.apply.object_id,
+  policy_tester_object_id: .identities.policy_tester.object_id,
+  expires_on: $exp}}' infra/shared/bootstrap.json
+```
+
+The rows match on principal, scope and operation together (Huggin's
+[LEGIT-BASELINE.md](https://github.com/MarwenOnGit/Huggin/blob/main/docs/LEGIT-BASELINE.md),
+principle 2), so a `listKeys` by the same identity outside the `bastion-*` groups still
+alerts. Renew `expires_on` before it passes.
 
 ## 3. GitHub environments
 

@@ -38,7 +38,7 @@ can stop the action.
    you approve. That is a time-boxed, approved use, not a standing one.
 
 Bastion does use `denyAction` where it fits: `protect_diagnostic_settings` (nobody can
-delete a diagnostic setting to blind Huginn) and `delete_protection` (nobody can delete
+delete a diagnostic setting to blind Huggin) and `delete_protection` (nobody can delete
 the policy remediation identity). Both follow Azure Landing Zones definitions.
 
 ## What NotActions does and does not do
@@ -57,5 +57,5 @@ Run Command on a VM. So for X-08 and X-14, least privilege remains the control.
 ## Gap
 
 You are Owner of the subscription, permanently. Without Entra ID P1/P2 there is no PIM to
-make that just-in-time. Huginn's `vm-runcommand-by-user` rule (validated 2026-11-03)
+make that just-in-time. Huggin's `vm-runcommand-by-user` rule (validated 2026-11-03)
 detects Run Command by any user, including you.

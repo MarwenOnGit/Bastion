@@ -7,7 +7,7 @@ Date: 2026-11-03. Status: accepted.
 The subscription also holds labs that must keep working:
 
 - `fenrir-lab-prod-rg` is deliberately insecure. A Deny policy there would break it.
-- `huginn-lab-rg`, `huginn-sentinel-rg`, `huginn-tfstate-rg` belong to Huginn.
+- `huginn-lab-rg`, `huginn-sentinel-rg`, `huginn-tfstate-rg` belong to Huggin.
 - Any group starting with `ctf-` belongs to CTF work.
 
 ## Decision

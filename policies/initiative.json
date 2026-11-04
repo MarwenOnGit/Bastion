@@ -383,7 +383,7 @@
         "X-08",
         "X-14"
       ],
-      "why": "Key Vault, NSG and blob logs reach Huginn's Sentinel workspace without anyone remembering to configure them.",
+      "why": "Key Vault, NSG and blob logs reach Huggin's Sentinel workspace without anyone remembering to configure them.",
       "members": [
         {
           "referenceId": "diag-keyvault",
@@ -695,7 +695,7 @@
       "auditEffect": "Disabled",
       "targetEffect": "DenyAction",
       "fenrir": [],
-      "why": "An attacker with Contributor cannot remove the log pipeline to Huginn. DenyAction is the only Azure Policy effect that blocks an action, and it supports only delete.",
+      "why": "An attacker with Contributor cannot remove the log pipeline to Huggin. DenyAction is the only Azure Policy effect that blocks an action, and it supports only delete.",
       "test": "manual",
       "members": [
         {

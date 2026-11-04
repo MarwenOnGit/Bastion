@@ -23,7 +23,7 @@ was not reachable from the build session):
 | Resource organization | Management group hierarchy (platform, landing zones, sandbox, decommissioned), one subscription per workload | Hierarchy `bastion` > `platform`, `landing-zones`, `sandbox`; resource groups stand in for subscriptions | CAF itself describes a single subscription with per-resource-group policy and RBAC as a valid starting state, and its transition path is to deploy ALZ in parallel. That is Bastion's roadmap |
 | Network topology and connectivity | Hub and spoke or Virtual WAN; firewall and gateways in the hub; private DNS zones in the hub; Private Link for PaaS | Hub and spoke, private DNS zones in the hub linked to both VNets, private endpoints for blob and vault, NSG on every subnet, no default outbound access | No firewall, gateway, Azure Bastion service or DDoS plan (cost). Their subnets are reserved. ADR [0007](adr/0007-no-firewall-gateway-or-azure-bastion-service.md) |
 | Security | Microsoft Defender for Cloud, MCSB, encryption, key management | Defender for Cloud foundational CSPM (free), security contact, every control mapped to MCSB v2, Key Vault with RBAC and purge protection | No paid Defender plans |
-| Management | Central Log Analytics, Activity log export, diagnostic settings by policy | Reuses Huginn's `law-huginn` (Huginn already exports the Activity log, including the Policy category). DeployIfNotExists diagnostic settings for Key Vault, NSG and blob. Diagnostic settings cannot be deleted (DenyAction) | No Azure Monitor Agent or update management: there are no VMs |
+| Management | Central Log Analytics, Activity log export, diagnostic settings by policy | Reuses Huggin's `law-huginn` (Huggin already exports the Activity log, including the Policy category). DeployIfNotExists diagnostic settings for Key Vault, NSG and blob. Diagnostic settings cannot be deleted (DenyAction) | No Azure Monitor Agent or update management: there are no VMs |
 | Governance | Policy-driven guardrails, assigned at management group scope, rolled out with `DoNotEnforce` first | `bastion-baseline`: 21 controls, built-ins first, Audit first, assigned at resource group scope | Resource group scope instead of management group (ADR [0002](adr/0002-policy-scope-and-exclusions.md)); effect parameters instead of `DoNotEnforce` (ADR [0003](adr/0003-audit-before-deny.md)) |
 | Platform automation and DevOps | Infrastructure as code, CI/CD with approvals, policy as code | Terraform, GitHub Actions with OIDC, environment approval for apply, nightly drift and compliance, conftest, a live policy test for every enforcing control | Smaller than the ALZ accelerator, on purpose (ADR [0009](adr/0009-why-not-the-alz-terraform-module.md)) |
 
@@ -48,7 +48,7 @@ assignments relevant to resources Bastion can have are listed.
 | Deny-Classic-Resources | `6c112d4e...` (Not allowed resource types) | same built-in, different list | Bastion's list is cost and exposure: appliances, public IPs, VMs |
 | DenyAction-DiagnosticLogs | ALZ custom | yes, `protect_diagnostic_settings` | Copied, with an effect parameter added |
 | DenyAction-DeleteUAMIAMA | DenyAction on the AMA identity | same idea, `delete_protection` | Protects Bastion's policy remediation identity instead |
-| Deploy-AzActivity-Log (root) | `2465583e...` | not needed | Huginn already exports the subscription Activity log to `law-huginn` |
+| Deploy-AzActivity-Log (root) | `2465583e...` | not needed | Huggin already exports the subscription Activity log to `law-huginn` |
 | Deploy-MDFC-Config (root) | Defender for Cloud plans and settings | partly | Foundational CSPM (free) and a security contact; no paid plans |
 | Enforce-ACSB, Deploy-VM-*, Deploy-SQL-*, AKS guardrails | VM, SQL, AKS | no | Bastion has none of those resources |
 | Enable-DDoS-VNET (connectivity) | DDoS plan | no | About $2,950 a month |
@@ -70,7 +70,7 @@ instead (Audit, then Deny). The reasons are in ADR
    stage each one. Bastion has one initiative, so an effect parameter is the per-control
    switch.
 2. With `DoNotEnforce`, Azure writes no Activity log entry for the evaluation. With the
-   Audit effect it does (`Microsoft.Authorization/policies/audit/action`), and Huginn
+   Audit effect it does (`Microsoft.Authorization/policies/audit/action`), and Huggin
    already collects the Policy category, so the Audit phase is visible in Sentinel.
 3. Two built-ins have no effect parameter at all, so for them `DoNotEnforce` would have
    been the only option without a custom copy. Bastion copies them instead, to keep one

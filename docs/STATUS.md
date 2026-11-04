@@ -151,7 +151,7 @@ Last updated: 2026-11-04.
 
 | Date | Phase | What happened |
 |---|---|---|
-| 2026-11-03 | 0 | Plan and questions. Tools installed. Huginn inventory read |
+| 2026-11-03 | 0 | Plan and questions. Tools installed. Huggin inventory read |
 | 2026-11-03 | 1 to 5, 7 | Bootstrap, governance, network, workload, conftest rules, policy tests, workflows and docs written on `bastion-dev`. Nothing applied |
 | 2026-11-04 | review | Compared with Azure Landing Zones, MCSB v2 and Microsoft Learn. 11 controls added, network made Deny-compatible, compliance report added, ADRs 0003, 0004, 0007, 0008 revised, ADR 0009 and ALZ-ALIGNMENT added, blog post written. Nothing applied |
 | | 6 | Waiting for Audit results from a real apply |

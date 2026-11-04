@@ -46,10 +46,10 @@ Bastion does not use it, for three reasons:
    an initiative. ALZ makes one assignment per guardrail, so it can stage each one.
    Bastion has one initiative and wants to move one control at a time, so the switch has
    to be a parameter.
-2. **Visibility in Huginn.** The same Learn table says `DoNotEnforce` writes no Activity
+2. **Visibility in Huggin.** The same Learn table says `DoNotEnforce` writes no Activity
    log entry. The Audit effect does write one
    (`Microsoft.Authorization/policies/audit/action`, Policy category, per the Activity
-   log schema), and Huginn already collects that category. So the Audit phase can be seen
+   log schema), and Huggin already collects that category. So the Audit phase can be seen
    and queried in Sentinel, not only in the Policy blade.
 3. **One mechanism.** The two fixed-Deny built-ins could only be staged with
    `DoNotEnforce`. Copying them keeps one way of doing it for every control.

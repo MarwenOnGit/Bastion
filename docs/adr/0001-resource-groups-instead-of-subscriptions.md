@@ -7,7 +7,7 @@ Date: 2026-11-03. Status: accepted.
 A Microsoft Cloud Adoption Framework landing zone separates platform and workloads into
 subscriptions (connectivity, management, identity, one per workload) under a management
 group hierarchy. Bastion runs on one Azure for Students subscription. Students cannot
-create more subscriptions, and the subscription also holds the Huginn and Fenrir labs.
+create more subscriptions, and the subscription also holds the Huggin and Fenrir labs.
 
 ## Decision
 
@@ -19,7 +19,7 @@ create more subscriptions, and the subscription also holds the Huginn and Fenrir
    | Landing zone subscription (workload) | `bastion-spoke-app-rg` |
    | Sandbox subscription | `bastion-test-rg` |
    | Management subscription (state) | `bastion-tfstate-rg` |
-   | Management subscription (logs) | Huginn's `law-huginn`, reused, not owned |
+   | Management subscription (logs) | Huggin's `law-huginn`, reused, not owned |
 
 2. Resource groups are the boundary for RBAC (each CI identity is scoped to groups) and
    for policy (bastion-baseline is assigned per group, see ADR 0002).
@@ -32,7 +32,7 @@ create more subscriptions, and the subscription also holds the Huginn and Fenrir
 What it would change:
 
 - Anything assigned at a Bastion management group (policy or RBAC) would start applying
-  to the whole subscription, **including the Huginn, Fenrir and CTF groups**. Bastion
+  to the whole subscription, **including the Huggin, Fenrir and CTF groups**. Bastion
   assigns nothing at management group scope today, so the move itself changes no
   effective policy. It does make a future mistake there much more dangerous.
 - Whoever owns the `bastion` management group becomes an Owner of the subscription by
@@ -56,5 +56,5 @@ To move: set `move_subscription_to_management_group = "landing-zones"` in
   the only separation. This is weaker than subscription separation and is stated as such
   in the README.
 - Subscription-scoped features (budget, Defender for Cloud plan, resource provider
-  registration) are shared with Huginn and Fenrir. The budget covers everything in the
+  registration) are shared with Huggin and Fenrir. The budget covers everything in the
   subscription, not only Bastion.

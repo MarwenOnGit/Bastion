@@ -29,7 +29,7 @@ and borrows from those projects instead of depending on them:
 
 1. **One subscription, resource-group scope.** The ALZ modules assume management group
    scope and several subscriptions. Assigning their archetypes at the root of this tenant
-   would apply to the Huginn, Fenrir and CTF groups, which ADR
+   would apply to the Huggin, Fenrir and CTF groups, which ADR
    [0002](0002-policy-scope-and-exclusions.md) forbids.
 2. **Cost.** The ALZ connectivity defaults include Azure Firewall, gateways and DDoS
    protection, which must all be turned off for Azure for Students.

@@ -137,7 +137,7 @@ resource "azurerm_role_assignment" "policy" {
   description                      = "Bastion policy remediation ${each.key}"
 }
 
-# The only write Bastion makes outside its own groups: a role assignment on Huginn's
+# The only write Bastion makes outside its own groups: a role assignment on Huggin's
 # workspace so diagnostic settings can point at it. No resource in huginn-sentinel-rg
 # changes. Turn off with grant_policy_identity_on_huginn_workspace = false.
 resource "azurerm_role_assignment" "policy_huginn_workspace" {

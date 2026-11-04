@@ -33,7 +33,7 @@ which is more than a typical Azure for Students credit.
 
 The budget (default $20 a month, `budget_amount` in `infra/governance`) alerts at 50%, 80%
 and 100% of actual cost and at 100% of forecast. A budget only alerts; it never stops
-anything. It covers the whole subscription, including Huginn and Fenrir.
+anything. It covers the whole subscription, including Huggin and Fenrir.
 
 Never deployed (see ADR [0007](adr/0007-no-firewall-gateway-or-azure-bastion-service.md)), and
 blocked in the Bastion groups by the `denied_resource_types` control once it is Deny:

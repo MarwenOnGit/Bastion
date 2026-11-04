@@ -7,16 +7,21 @@ privilege, and a pipeline that proves the guardrails work by trying to break the
 > **Name:** this is the **Bastion landing zone**. It does not deploy Azure Bastion,
 > Microsoft's paid jump-host service. See [ADR 0007](docs/adr/0007-no-firewall-gateway-or-azure-bastion-service.md).
 
-**Bastion prevents, Huginn detects.** Bastion is one of three projects:
+**Bastion prevents, Huggin detects.** Bastion is one of three projects:
 
 - [Fenrir](https://github.com/MarwenOnGit/fenrir): Azure managed-identity attack-path tool.
-- [Huginn](https://github.com/MarwenOnGit/Huggin): Microsoft Sentinel detections for
+- [Huggin](https://github.com/MarwenOnGit/Huggin): Microsoft Sentinel detections for
   Fenrir's telemetry.
 - **Bastion**: the guardrails that stop Fenrir's steps from working in the first place,
-  and send logs to Huginn's workspace.
+  and send logs to Huggin's workspace.
+
+Bastion depends on Huggin: apply Huggin's `sentinel` stack first, and register Bastion's
+CI identities in Huggin's trusted-automation watchlist after the bootstrap
+([SETUP.md](docs/SETUP.md), step 2). Lower-case names such as `law-huginn` and
+`huginn-sentinel-rg` are Huggin's deployed identifiers and keep the old spelling.
 
 For every Fenrir operation, [PREVENT-DETECT.md](docs/PREVENT-DETECT.md) says whether
-Bastion prevents it, Huginn detects it, or neither.
+Bastion prevents it, Huggin detects it, or neither.
 
 ## Status (2026-11-04)
 
@@ -49,7 +54,7 @@ flowchart LR
       kv["Key Vault<br/>no public access, RBAC"]
     end
     test["bastion-test-rg<br/>policy tests"]
-    law["law-huginn (Huginn)<br/>Sentinel"]
+    law["law-huginn (Huggin)<br/>Sentinel"]
   end
   hub <-- peering --> spoke
   spoke -- private endpoints --> st
@@ -149,9 +154,9 @@ subscription, and maps each of its controls to the ALZ assignment that would rep
    policy test turning green.
 2. Diagnostic settings for App Service (X-11 detection) and file shares (D-02).
 3. A custom Deny on `basicPublishingCredentialsPolicies` to block re-enabling basic auth.
-4. A Huginn rule on Bastion's policy denials (the query is in PREVENT-DETECT).
+4. Validate Huggin's `bastion-policy-denial` rule (a draft in Huggin, built from the query in PREVENT-DETECT) once controls are in Deny.
 5. With an Entra ID P1 licence: Conditional Access to block device code flow, PIM for
-   Owner, and sign-in and Graph activity logs into Huginn.
+   Owner, and sign-in and Graph activity logs into Huggin.
 6. Move the subscription under `bastion-landing-zones` once ADR 0001's check is done.
 
 ## Repository layout

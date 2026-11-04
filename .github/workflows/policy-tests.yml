@@ -1,6 +1,6 @@
 name: policy-tests
 
-# Bastion's equivalent of Huginn's replays: try to create non-compliant resources
+# Bastion's equivalent of Huggin's replays: try to create non-compliant resources
 # in bastion-test-rg and expect RequestDisallowedByPolicy. Runs as
 # bastion-policy-tester (Contributor on bastion-test-rg only) in the
 # bastion-policy-tests environment (main branch only).

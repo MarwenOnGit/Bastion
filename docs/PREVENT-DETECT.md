@@ -1,8 +1,8 @@
-# Prevent and detect: Fenrir against Bastion and Huginn
+# Prevent and detect: Fenrir against Bastion and Huggin
 
-**Bastion prevents, Huginn detects.** For every Fenrir operation in Huginn's inventory
+**Bastion prevents, Huggin detects.** For every Fenrir operation in Huggin's inventory
 ([FENRIR-OPERATIONS.md](https://github.com/MarwenOnGit/Huggin/blob/main/docs/FENRIR-OPERATIONS.md),
-Fenrir commit `5959162`), this table says what Bastion does to prevent it, which Huginn
+Fenrir commit `5959162`), this table says what Bastion does to prevent it, which Huggin
 rule detects it ([FENRIR-MAPPING.md](https://github.com/MarwenOnGit/Huggin/blob/main/docs/FENRIR-MAPPING.md)),
 and what is left.
 
@@ -14,7 +14,7 @@ Status words:
 - **Limits:** Bastion does not stop the operation but reduces what it can reach or what
   its result is worth.
 - **No:** Bastion does nothing about it.
-- Huginn "validated" means a benign replay passed, as recorded in Huginn's STATUS on
+- Huggin "validated" means a benign replay passed, as recorded in Huggin's STATUS on
   2026-11-03.
 
 Most of the important controls work by **RBAC, not Policy**. Azure Policy cannot block an
@@ -28,7 +28,7 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 
 ## Sign-in
 
-| Op | What Fenrir does | Bastion | Huginn | Gap |
+| Op | What Fenrir does | Bastion | Huggin | Gap |
 |---|---|---|---|---|
 | A-01 | MSAL public client with the Azure CLI client ID | No | Context for other rules | Cannot be told apart from a real `az login` by client ID |
 | A-02 | Device code sign-in | No. Blocking device code flow needs Conditional Access (Entra ID P1) | `devicecode-azure-mgmt-signin` (new, not validated) | No P1 in this tenant. Sign-in logs cannot be exported to Log Analytics without P1/P2, so this rule has no data here |
@@ -38,7 +38,7 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 
 ## enumerate
 
-| Op | What Fenrir does | Bastion | Huginn | Gap |
+| Op | What Fenrir does | Bastion | Huggin | Gap |
 |---|---|---|---|---|
 | E-01 to E-07 | Graph reads: `/me`, domains, directory roles, PIM, groups, owned objects, devices | No | `graph-directory-recon` (new, not validated) | Needs `MicrosoftGraphActivityLogs`, which needs Entra ID P1/P2. Blind spot here |
 | E-08 to E-13 | ARM reads: management groups, subscriptions, groups, resources, role assignments | No. Reads by an authorised principal are allowed | none possible | Blind spot: `AzureActivity` does not record GETs |
@@ -46,7 +46,7 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 
 ## exploit
 
-| Op | What Fenrir does | Bastion | Huginn | Gap |
+| Op | What Fenrir does | Bastion | Huggin | Gap |
 |---|---|---|---|---|
 | X-01 to X-04 | Discovery reads (subscriptions, groups, `GET /me`, role assignments) | No | none possible | Blind spot |
 | X-05 | Same reads as E-14 to E-27 | Limits (designed), as above | none possible | Blind spot |
@@ -64,14 +64,14 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 
 ## post-exploit
 
-| Op | What Fenrir does | Bastion | Huginn | Gap |
+| Op | What Fenrir does | Bastion | Huggin | Gap |
 |---|---|---|---|---|
 | P-01 to P-11 | Reads as the managed identity (subscriptions, groups, resources, permissions, storage accounts, registries) | Limits: least-privilege managed identity, as X-19 to X-21 | none possible | Blind spot |
 | P-12 | Storage `listKeys` | **Prevents the use (designed):** `storage_shared_key` (Deny target) means the keys cannot authenticate; every Bastion account sets `shared_access_key_enabled = false` (conftest and pytest check it). Policy cannot block `listKeys` itself | `storage-keys-listed` **partly validated** (branch C) 2026-11-03; `mi-control-plane-new-ip` (new) | `listKeys` still returns keys to a principal with the right role; they are just useless. Branch A needs the purple-team run |
 | P-13 | ACR `listCredentials` | **Prevents the use (designed):** `acr_admin_user` (Deny target); conftest rejects `admin_enabled = true` | `acr-admin-creds-listed` (new, not validated) | Same as P-12 |
-| D-01 | Blob listing and download (account key or OAuth) | **Prevents (designed):** shared key off (no key auth), `storage_public_network` (no path from the operator's machine, even with an OAuth token), `storage_blob_public_access` (no anonymous containers), `storage_secure_transfer` and `storage_min_tls` (no clear text, no old TLS) | `StorageBlobLogs` reach `law-huginn` through `diagnostic_settings` once it is DeployIfNotExists; no Huginn rule yet | A principal inside the VNet with a data role can still read. With shared keys off, account and service SAS stop working, but a user delegation SAS (signed with Entra ID) still works for anyone with the role to create one |
+| D-01 | Blob listing and download (account key or OAuth) | **Prevents (designed):** shared key off (no key auth), `storage_public_network` (no path from the operator's machine, even with an OAuth token), `storage_blob_public_access` (no anonymous containers), `storage_secure_transfer` and `storage_min_tls` (no clear text, no old TLS) | `StorageBlobLogs` reach `law-huginn` through `diagnostic_settings` once it is DeployIfNotExists; no Huggin rule yet | A principal inside the VNet with a data role can still read. With shared keys off, account and service SAS stop working, but a user delegation SAS (signed with Entra ID) still works for anyone with the role to create one |
 | D-02 | File share listing and download | Same as D-01 | `StorageFileLogs`: not in Bastion's diagnostic settings (blob only) | No file log collection |
-| D-03 | ACR token exchange, catalog, image pull | Prevents admin-credential use (designed); no registry exists in Bastion | out of scope in Huginn | No registry logs |
+| D-03 | ACR token exchange, catalog, image pull | Prevents admin-credential use (designed); no registry exists in Bastion | out of scope in Huggin | No registry logs |
 
 ## Defence evasion: deleting the logs
 
@@ -79,12 +79,12 @@ Fenrir does not do this, but the next step for an attacker who has Contributor i
 delete diagnostic settings, so the actions that follow leave no trace in Sentinel.
 `protect_diagnostic_settings` (DenyAction, from the Azure Landing Zones
 `DenyAction-DiagnosticLogs` definition) refuses any delete of a diagnostic setting in the
-Bastion groups. The subscription Activity log export belongs to Huginn and is outside
+Bastion groups. The subscription Activity log export belongs to Huggin and is outside
 Bastion's scope.
 
 ## Every prevented attempt is also a detection
 
-Huginn exports the subscription Activity log, including the **Policy** category, to
+Huggin exports the subscription Activity log, including the **Policy** category, to
 `law-huginn`. When `bastion-baseline` denies a request, Azure writes a Policy event with
 operation `Microsoft.Authorization/policies/deny/action`, and the assignment name in
 `properties.policies` (Activity log schema, "Policy category"). So a blocked attempt is not
@@ -105,9 +105,12 @@ AzureActivity
 ```
 
 The policy tests produce these events every night on purpose, as `bastion-policy-tester`.
-A Huginn rule built on this query should exclude that caller, and alert on denials by
+A Huggin rule built on this query should exclude that caller, and alert on denials by
 anyone else, especially a managed identity (Fenrir's post-exploit caller). That rule
-belongs in Huginn, not here; this is the hand-off.
+belongs in Huggin, not here. It now exists there as a draft,
+[`bastion-policy-denial`](https://github.com/MarwenOnGit/Huggin/tree/main/detections/beyond-fenrir/bastion-policy-denial),
+and excludes the tester through Huggin's trusted-automation watchlist
+([SETUP.md](SETUP.md), step 2). It cannot be validated until a control is in Deny.
 
 ## Summary
 
@@ -116,7 +119,7 @@ belongs in Huginn, not here; this is the hand-off.
 | Fenrir operations in the inventory | 66 (plus D-01 to D-03) |
 | Prevented or made useless by a Bastion control (designed, not yet proven) | X-08 (no VM can exist), X-11, X-14, P-12, P-13, D-01, D-02, D-03 |
 | Limited by least privilege | E-14 to E-27, X-05, X-10, X-13, X-15 to X-21, P-01 to P-11 |
-| Detected by a validated Huginn rule | X-08, X-13, P-12 (partly) |
+| Detected by a validated Huggin rule | X-08, X-13, P-12 (partly) |
 | Neither prevented nor detected | A-01 to A-05 (no P1 licence), E-01 to E-13, X-01 to X-04, X-06, X-07, X-09, X-12 |
 
 The largest gap is identity: without Entra ID P1/P2 there is no Conditional Access, no PIM,
