@@ -27,6 +27,9 @@ locals {
       {
         vm_operator               = azurerm_role_definition.vm_operator.role_definition_resource_id
         policy_identity_reference = azurerm_role_definition.policy_identity_reference.role_definition_resource_id
+        policy_author             = azurerm_role_definition.policy_author.role_definition_resource_id
+        policy_assigner           = azurerm_role_definition.policy_assigner.role_definition_resource_id
+        defender_settings         = azurerm_role_definition.defender_settings.role_definition_resource_id
       },
       { for r in azurerm_role_definition.diagnostics_destination : "diagnostics_destination" => r.role_definition_resource_id }
     )

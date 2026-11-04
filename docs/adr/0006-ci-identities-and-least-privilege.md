@@ -21,22 +21,64 @@ read-only identity cannot take it, and a plan that does not apply has nothing to
 | Role | Scope | Why |
 |---|---|---|
 | Reader | subscription | Read data sources (resource groups, DNS zones, subnets) |
-| Resource Policy Contributor | subscription | Policy definitions, the initiative and assignments |
+| Bastion Policy Author (custom) | subscription | Write the custom policy definitions and the initiative, which must live at subscription scope |
+| Bastion Policy Assigner (custom) | `bastion-hub-rg`, `bastion-spoke-app-rg`, `bastion-test-rg`, `bastion-identity-rg` (and the subscription only if `allow_subscription_audit_assignment`) | Create the `bastion-baseline` assignments |
 | Cost Management Contributor | subscription | The budget |
-| Security Admin | subscription | The Defender for Cloud free tier setting |
+| Bastion Defender Settings (custom) | subscription | The Defender for Cloud free tier setting and the security contact |
 | Contributor | `bastion-hub-rg`, `bastion-spoke-app-rg` | Network and workload resources |
 | Bastion Policy Identity Reference (custom) | the `id-bastion-policy` resource only | Attach the policy identity to `bastion-baseline` assignments |
 | Storage Blob Data Contributor | `tfstate` container | Write state and take locks |
 
+Changed in the 2026-11-04 security review (finding 2). Before, apply held two built-in roles
+at subscription scope:
+
+- **Resource Policy Contributor**: `policyassignments/*`, `policydefinitions/*`,
+  `policyexemptions/*`, `policyenrollments/*`, `policysetdefinitions/*`,
+  `Microsoft.PolicyInsights/*` and `Microsoft.Resources/deployments/*`, everywhere in the
+  subscription. It could create a Deny assignment on the Fenrir lab, or an exemption.
+- **Security Admin**: `Microsoft.Security/*` (every Defender plan, including paid ones),
+  and also `Microsoft.Authorization/policyAssignments/*`, `policyDefinitions/*` and
+  `policyExemptions/*` at subscription scope. So it was a second route to the same
+  policy rights.
+
+Now the three custom roles carry only the operations the governance stack performs
+(names from Microsoft Learn, "Azure permissions for Management and governance" and
+"Azure permissions for Security"):
+
+| Custom role | Actions |
+|---|---|
+| Bastion Policy Author | `Microsoft.Authorization/policyDefinitions/{read,write,delete}`, `policySetDefinitions/{read,write,delete}` |
+| Bastion Policy Assigner | `Microsoft.Authorization/policyAssignments/{read,write,delete}` |
+| Bastion Defender Settings | `Microsoft.Security/pricings/{read,write}`, `securityContacts/{read,write,delete}` |
+
+Why each is enough, and what was not verified:
+
+- The assignments reference a definition at subscription scope; reading it is covered by
+  Reader.
+- Attaching `id-bastion-policy` to an assignment is covered by Bastion Policy Identity
+  Reference (above).
+- azurerm 4.81 never deletes a pricing: its destroy sets the plan back to Free with an
+  Update, so `pricings/delete` is not needed (provider source,
+  `security_center_subscription_pricing_resource.go`).
+- No exemptions, enrolments or remediation tasks are created by Terraform, so none of
+  those rights are granted. A remediation task for existing resources would have to be
+  started by hand (STATUS, Could not verify).
+- Not verified in Azure: that these operations are all ARM checks for the plan the
+  governance stack produces. If an apply fails with `AuthorizationFailed`, the error names
+  the missing action; add only that action.
+
 Residual risk, stated plainly:
 
-- Resource Policy Contributor at subscription scope could create a Deny assignment on a
-  protected group. Three layers stop that from happening by accident: the Terraform
-  variable validation, the conftest rule run before every apply, and your review in the
-  `bastion-apply` environment. None of them stops a malicious workflow change merged to
-  main; your review of the pull request does.
-- Security Admin could enable a paid Defender plan. conftest rejects any tier other than
-  Free.
+- Bastion Policy Author at subscription scope could change a policy definition. It cannot
+  assign one outside the Bastion groups.
+- With `allow_subscription_audit_assignment = true`, Bastion Policy Assigner at
+  subscription scope could create an assignment anywhere in the subscription. Three
+  layers stop that from happening by accident: the Terraform variable validation, the
+  conftest rule run before every apply, and your review in the `bastion-apply`
+  environment. None of them stops a malicious workflow change merged to main; your review
+  of the pull request does. It is off by default.
+- Bastion Defender Settings could still enable a paid Defender plan (`pricings/write` has
+  no tier condition). conftest rejects any tier other than Free.
 
 ### bastion-policy-tester (policy tests)
 

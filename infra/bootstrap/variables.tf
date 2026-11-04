@@ -101,6 +101,12 @@ variable "lock_huginn_workspace" {
   default     = true
 }
 
+variable "allow_subscription_audit_assignment" {
+  description = "Also give the apply identity Bastion Policy Assigner at subscription scope, so it can create the audit-only subscription assignment. Set it to the same value as enable_subscription_audit in infra/governance. Off by default."
+  type        = bool
+  default     = false
+}
+
 variable "move_subscription_to_management_group" {
   description = "Optional and off by default. Set to \"landing-zones\" to move the subscription under bastion-landing-zones. Read docs/adr/0001 first."
   type        = string

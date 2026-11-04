@@ -262,3 +262,49 @@ def test_stacks_use_no_identity_carrying_compute(rtype):
 def test_denied_types_test_covers_a_container_group():
     script = (ROOT / "tests" / "policy" / "test-denied-resource-types.sh").read_text()
     assert "Microsoft.ContainerInstance/containerGroups" in script
+
+
+# --- review finding 2: no subscription-wide policy or security admin roles -------
+
+
+def role_actions(name):
+    roles = (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+    block = roles.split(f'resource "azurerm_role_definition" "{name}"', 1)[1].split("\n}\n", 1)[0]
+    return block, sorted(re.findall(r'"(Microsoft\.[^"]+)"', block))
+
+
+@pytest.mark.parametrize("role", ["Resource Policy Contributor", "Security Admin", "Contributor\", scope = local.subscription_scope"])
+def test_apply_has_no_broad_subscription_role(role):
+    assert f'role = "{role}' not in (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+
+
+def test_policy_author_only_writes_definitions():
+    _, actions = role_actions("policy_author")
+    assert actions and all(a.split("/")[1] in {"policyDefinitions", "policySetDefinitions"} for a in actions)
+
+
+def test_policy_assigner_only_on_bastion_groups():
+    block, actions = role_actions("policy_assigner")
+    assert actions == [
+        "Microsoft.Authorization/policyAssignments/delete",
+        "Microsoft.Authorization/policyAssignments/read",
+        "Microsoft.Authorization/policyAssignments/write",
+    ]
+    roles = (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+    scopes = roles.split("policy_assignment_scopes = merge(", 1)[1].split("\n  )\n", 1)[0]
+    assert "var.allow_subscription_audit_assignment ? { subscription" in scopes
+    for g in ["hub", "spoke_app", "test", "identity"]:
+        assert f'rg_ids["{g}"]' in scopes
+    v = (ROOT / "infra" / "bootstrap" / "variables.tf").read_text()
+    assert re.search(r'variable "allow_subscription_audit_assignment" \{[^}]*default     = false', v, re.S)
+
+
+def test_defender_settings_role_is_minimal():
+    _, actions = role_actions("defender_settings")
+    assert actions == [
+        "Microsoft.Security/pricings/read",
+        "Microsoft.Security/pricings/write",
+        "Microsoft.Security/securityContacts/delete",
+        "Microsoft.Security/securityContacts/read",
+        "Microsoft.Security/securityContacts/write",
+    ]

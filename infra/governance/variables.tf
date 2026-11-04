@@ -86,7 +86,7 @@ variable "existing_prefixed_protected_groups" {
 }
 
 variable "enable_subscription_audit" {
-  description = "Also assign bastion-baseline at subscription scope, in audit-only mode, excluding every protected group. Off by default."
+  description = "Also assign bastion-baseline at subscription scope, in audit-only mode, excluding every protected group. Off by default. Needs allow_subscription_audit_assignment = true in infra/bootstrap, or the apply identity has no right to assign at subscription scope."
   type        = bool
   default     = false
 }

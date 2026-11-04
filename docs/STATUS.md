@@ -116,6 +116,12 @@ Last updated: 2026-11-04.
   particular. If it is not checked, the custom role is harmless and can be removed.
 - Which Huginn operations the `CanNotDelete` lock on `law-huginn` blocks besides deleting
   the workspace (Learn: extension resources inherit the lock).
+- That the three custom apply roles (Bastion Policy Author, Policy Assigner, Defender
+  Settings) cover every call the governance plan makes. Microsoft does not publish a
+  per-call list; an `AuthorizationFailed` error names any missing action.
+- Whether Bastion Policy Assigner is enough to start a remediation task by hand. It is
+  not meant to be: remediation tasks need `Microsoft.PolicyInsights/remediations/write`,
+  which apply no longer has. Start them as yourself.
 
 ## Blocked in the build session
 
@@ -150,6 +156,8 @@ Last updated: 2026-11-04.
 | 18 | (security review 1, high) Apply had Contributor on `bastion-hub-rg`, where `id-bastion-policy` lived, so it could attach the identity to new compute and run code as it; the identity had Log Analytics Contributor (`Microsoft.OperationalInsights/*`) on `law-huginn` | Attaching a user-assigned identity needs `assign/action` on it (Learn, managed identities FAQ); Contributor includes it | Identity moved to `bastion-identity-rg` (no CI Contributor); apply gets only read + `assign/action` on the identity (custom role); identity-carrying compute denied; conftest rule; destination-only role on `law-huginn`; `CanNotDelete` lock on `law-huginn` |
 | 19 | (security review 1c) Log Analytics Contributor on the Bastion groups, as the diagnostic built-ins list it | It brings `virtualMachines/extensions/*` and `listKeys`; Monitoring Contributor already has `DiagnosticSettings/*` and `deployments/*` (Learn, built-in roles for Monitor) | Monitoring Contributor only, behind `policy_identity_log_analytics_contributor` (default false) |
 | 20 | (my docs) ADR 0006 called the `law-huginn` role "the one role assignment Bastion makes in huginn-sentinel-rg" | There are now two writes there: the role assignment and the lock | Reworded in ADR 0006 and in `roles.tf` |
+| 21 | (security review 2, medium) Apply had Resource Policy Contributor at subscription scope | It covers assignments, exemptions and remediation everywhere in the subscription | Custom roles: Bastion Policy Author (definitions, subscription) and Bastion Policy Assigner (assignments, Bastion groups only; subscription only with `allow_subscription_audit_assignment`) |
+| 22 | (security review 2, medium) Apply had Security Admin at subscription scope | It covers all of `Microsoft.Security/*`, and also `policyAssignments/*` at subscription scope (Learn, built-in roles for Security) | Custom role Bastion Defender Settings: `pricings/{read,write}`, `securityContacts/{read,write,delete}` |
 
 ## Decisions taken without your answer (you asked for an end-to-end build)
 

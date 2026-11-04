@@ -17,9 +17,7 @@ locals {
     "plan/reader-sub"         = { identity = "plan", role = "Reader", scope = local.subscription_scope }
     "plan/state-reader"       = { identity = "plan", role = "Storage Blob Data Reader", scope = local.tfstate_container_scope }
     "apply/reader-sub"        = { identity = "apply", role = "Reader", scope = local.subscription_scope }
-    "apply/policy-sub"        = { identity = "apply", role = "Resource Policy Contributor", scope = local.subscription_scope }
     "apply/cost-sub"          = { identity = "apply", role = "Cost Management Contributor", scope = local.subscription_scope }
-    "apply/security-sub"      = { identity = "apply", role = "Security Admin", scope = local.subscription_scope }
     "apply/contributor-hub"   = { identity = "apply", role = "Contributor", scope = local.rg_ids["hub"] }
     "apply/contributor-spoke" = { identity = "apply", role = "Contributor", scope = local.rg_ids["spoke_app"] }
     "apply/state-writer"      = { identity = "apply", role = "Storage Blob Data Contributor", scope = local.tfstate_container_scope }
@@ -36,6 +34,105 @@ resource "azurerm_role_assignment" "ci" {
   principal_type                   = "ServicePrincipal"
   skip_service_principal_aad_check = true
   description                      = "Bastion ${each.key}"
+}
+
+# ---------------------------------------------------------------------------
+# Custom roles for the apply identity (review finding 2). They replace Resource
+# Policy Contributor and Security Admin at subscription scope. Security Admin also
+# included Microsoft.Authorization/policyAssignments/* on the whole subscription.
+# Operation names: Microsoft Learn, "Azure permissions for Management and governance"
+# and "Azure permissions for Security".
+# ---------------------------------------------------------------------------
+
+# Definitions and the initiative must live at subscription scope (an assignment at a
+# resource group needs its definition at that subscription or above).
+resource "azurerm_role_definition" "policy_author" {
+  name        = "Bastion Policy Author"
+  scope       = local.subscription_scope
+  description = "Create, update and delete custom policy definitions and policy set definitions. No assignments, exemptions or remediation."
+
+  permissions {
+    actions = [
+      "Microsoft.Authorization/policyDefinitions/read",
+      "Microsoft.Authorization/policyDefinitions/write",
+      "Microsoft.Authorization/policyDefinitions/delete",
+      "Microsoft.Authorization/policySetDefinitions/read",
+      "Microsoft.Authorization/policySetDefinitions/write",
+      "Microsoft.Authorization/policySetDefinitions/delete",
+    ]
+  }
+
+  assignable_scopes = [local.subscription_scope]
+}
+
+locals {
+  # Groups that receive bastion-baseline (must match assignment_resource_groups in
+  # infra/governance). The subscription is added only for the audit-only assignment.
+  policy_assignment_scopes = merge(
+    {
+      hub       = local.rg_ids["hub"]
+      spoke_app = local.rg_ids["spoke_app"]
+      test      = local.rg_ids["test"]
+      identity  = local.rg_ids["identity"]
+    },
+    var.allow_subscription_audit_assignment ? { subscription = local.subscription_scope } : {}
+  )
+}
+
+resource "azurerm_role_definition" "policy_assigner" {
+  name        = "Bastion Policy Assigner"
+  scope       = local.subscription_scope
+  description = "Create, update and delete policy assignments. Assigned only on the Bastion resource groups (and the subscription when the audit-only assignment is allowed)."
+
+  permissions {
+    actions = [
+      "Microsoft.Authorization/policyAssignments/read",
+      "Microsoft.Authorization/policyAssignments/write",
+      "Microsoft.Authorization/policyAssignments/delete",
+    ]
+  }
+
+  assignable_scopes = values(local.policy_assignment_scopes)
+}
+
+# Defender for Cloud: the governance stack sets the CloudPosture plan to Free and
+# manages one security contact. azurerm 4.81 resets a pricing to Free with an Update
+# (pricings/write) on destroy, and deletes the contact with securityContacts/delete.
+resource "azurerm_role_definition" "defender_settings" {
+  name        = "Bastion Defender Settings"
+  scope       = local.subscription_scope
+  description = "Read and set Defender for Cloud plan pricing, and manage security contacts. Nothing else in Microsoft.Security."
+
+  permissions {
+    actions = [
+      "Microsoft.Security/pricings/read",
+      "Microsoft.Security/pricings/write",
+      "Microsoft.Security/securityContacts/read",
+      "Microsoft.Security/securityContacts/write",
+      "Microsoft.Security/securityContacts/delete",
+    ]
+  }
+
+  assignable_scopes = [local.subscription_scope]
+}
+
+locals {
+  apply_custom_role_assignments = merge(
+    { "policy-author/subscription" = { role = azurerm_role_definition.policy_author.role_definition_resource_id, scope = local.subscription_scope } },
+    { "defender-settings/subscription" = { role = azurerm_role_definition.defender_settings.role_definition_resource_id, scope = local.subscription_scope } },
+    { for k, scope in local.policy_assignment_scopes : "policy-assigner/${k}" => { role = azurerm_role_definition.policy_assigner.role_definition_resource_id, scope = scope } },
+  )
+}
+
+resource "azurerm_role_assignment" "apply_custom" {
+  for_each = local.apply_custom_role_assignments
+
+  scope                            = each.value.scope
+  role_definition_id               = each.value.role
+  principal_id                     = azuread_service_principal.ci["apply"].object_id
+  principal_type                   = "ServicePrincipal"
+  skip_service_principal_aad_check = true
+  description                      = "Bastion apply/${each.key}"
 }
 
 # ---------------------------------------------------------------------------
