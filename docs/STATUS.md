@@ -181,4 +181,5 @@ Last updated: 2026-11-04.
 | 2026-11-03 | 0 | Plan and questions. Tools installed. Huginn inventory read |
 | 2026-11-03 | 1 to 5, 7 | Bootstrap, governance, network, workload, conftest rules, policy tests, workflows and docs written on `bastion-dev`. Nothing applied |
 | 2026-11-04 | review | Compared with Azure Landing Zones, MCSB v2 and Microsoft Learn. 11 controls added, network made Deny-compatible, compliance report added, ADRs 0003, 0004, 0007, 0008 revised, ADR 0009 and ALZ-ALIGNMENT added, blog post written. Nothing applied |
+| 2026-11-04 | security review fixes | Branch `fix/review-2026-11-04`. Finding 1 (high): identity moved to `bastion-identity-rg`, apply limited to read and attach on it, destination-only role and delete lock on `law-huginn`, identity-carrying compute denied, conftest rule. Finding 2 (medium): Resource Policy Contributor and Security Admin replaced by three custom roles. Finding 3 (low): budget address sensitive and an Actions secret. Finding 4 (docs): resource-group scope stated. Corrections 18 to 24. Nothing applied |
 | | 6 | Waiting for Audit results from a real apply |
