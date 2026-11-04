@@ -23,9 +23,17 @@ locals {
       principal_id = azurerm_user_assigned_identity.policy.principal_id
       client_id    = azurerm_user_assigned_identity.policy.client_id
     }
-    custom_roles = {
-      vm_operator = azurerm_role_definition.vm_operator.role_definition_resource_id
-    }
+    custom_roles = merge(
+      {
+        vm_operator               = azurerm_role_definition.vm_operator.role_definition_resource_id
+        policy_identity_reference = azurerm_role_definition.policy_identity_reference.role_definition_resource_id
+        policy_author             = azurerm_role_definition.policy_author.role_definition_resource_id
+        policy_assigner           = azurerm_role_definition.policy_assigner.role_definition_resource_id
+        defender_settings         = azurerm_role_definition.defender_settings.role_definition_resource_id
+      },
+      { for r in azurerm_role_definition.diagnostics_destination : "diagnostics_destination" => r.role_definition_resource_id }
+    )
+    huginn_workspace_locked = var.lock_huginn_workspace
     management_groups = merge(
       { bastion = azurerm_management_group.bastion.id },
       { for k, mg in azurerm_management_group.child : k => mg.id }

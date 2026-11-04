@@ -102,6 +102,26 @@ Last updated: 2026-11-04.
 - That Defender for Cloud's own default assignment (the Microsoft cloud security benchmark
   at subscription scope) exists on this subscription. Bastion does not assign MCSB itself.
 - The KQL in PREVENT-DETECT against `law-huginn` (field layout of `Properties_d`).
+- That Bastion Diagnostics Destination (`workspaces/read` + `workspaces/sharedKeys/action`)
+  is enough for a DeployIfNotExists remediation to create a diagnostic setting that sends
+  to `law-huginn`. Learn documents it for users configuring diagnostic settings; the
+  policy deployment path is not described separately. Fallback:
+  `narrow_huginn_workspace_role = false`.
+- That Monitoring Contributor alone (without the Log Analytics Contributor the Key Vault
+  and NSG built-ins list in `roleDefinitionIds`) lets the remediation deploy. Fallback:
+  `policy_identity_log_analytics_contributor = true`.
+- That Azure Policy checks `userAssignedIdentities/assign/action` when a policy
+  assignment references a user-assigned identity. Learn states the rule for assigning a
+  user-assigned identity to any resource; it is not stated for policy assignments in
+  particular. If it is not checked, the custom role is harmless and can be removed.
+- Which Huginn operations the `CanNotDelete` lock on `law-huginn` blocks besides deleting
+  the workspace (Learn: extension resources inherit the lock).
+- That the three custom apply roles (Bastion Policy Author, Policy Assigner, Defender
+  Settings) cover every call the governance plan makes. Microsoft does not publish a
+  per-call list; an `AuthorizationFailed` error names any missing action.
+- Whether Bastion Policy Assigner is enough to start a remediation task by hand. It is
+  not meant to be: remediation tasks need `Microsoft.PolicyInsights/remediations/write`,
+  which apply no longer has. Start them as yourself.
 
 ## Blocked in the build session
 
@@ -133,13 +153,20 @@ Last updated: 2026-11-04.
 | 15 | (my design, 2026-11-03) Subnets as separate `azurerm_subnet` resources | A subnet created before its NSG association violates ALZ's Deny-Subnet-Without-Nsg | Subnets declared inline with `security_group` |
 | 16 | (my code, 2026-11-03) `enable_rbac_authorization` on Key Vault | Deprecated in azurerm 4.x, removed in 5.0 | `rbac_authorization_enabled` |
 | 17 | (my code, 2026-11-03) Providers `~> 4.0` and no lock files | Too loose; HashiCorp recommends committed lock files | Pinned to the minor version CI resolved; SETUP step to create and commit lock files |
+| 18 | (security review 1, high) Apply had Contributor on `bastion-hub-rg`, where `id-bastion-policy` lived, so it could attach the identity to new compute and run code as it; the identity had Log Analytics Contributor (`Microsoft.OperationalInsights/*`) on `law-huginn` | Attaching a user-assigned identity needs `assign/action` on it (Learn, managed identities FAQ); Contributor includes it | Identity moved to `bastion-identity-rg` (no CI Contributor); apply gets only read + `assign/action` on the identity (custom role); identity-carrying compute denied; conftest rule; destination-only role on `law-huginn`; `CanNotDelete` lock on `law-huginn` |
+| 19 | (security review 1c) Log Analytics Contributor on the Bastion groups, as the diagnostic built-ins list it | It brings `virtualMachines/extensions/*` and `listKeys`; Monitoring Contributor already has `DiagnosticSettings/*` and `deployments/*` (Learn, built-in roles for Monitor) | Monitoring Contributor only, behind `policy_identity_log_analytics_contributor` (default false) |
+| 20 | (my docs) ADR 0006 called the `law-huginn` role "the one role assignment Bastion makes in huginn-sentinel-rg" | There are now two writes there: the role assignment and the lock | Reworded in ADR 0006 and in `roles.tf` |
+| 21 | (security review 2, medium) Apply had Resource Policy Contributor at subscription scope | It covers assignments, exemptions and remediation everywhere in the subscription | Custom roles: Bastion Policy Author (definitions, subscription) and Bastion Policy Assigner (assignments, Bastion groups only; subscription only with `allow_subscription_audit_assignment`) |
+| 22 | (security review 2, medium) Apply had Security Admin at subscription scope | It covers all of `Microsoft.Security/*`, and also `policyAssignments/*` at subscription scope (Learn, built-in roles for Security) | Custom role Bastion Defender Settings: `pricings/{read,write}`, `securityContacts/{read,write,delete}` |
+| 23 | (security review 3, low) Budget email as a repository variable, in job-level `env` | GitHub Docs: variables render unmasked in logs, and job `env` is printed in every step header of these public logs; Terraform did not mark it sensitive | Actions secret, read only by the step that builds `TF_VAR_budget_alert_emails` (which masks it); `sensitive = true` on `budget_alert_emails`, which also feeds the security contact |
+| 24 | (security review 4, docs) README, blog, ALZ-ALIGNMENT and ARCHITECTURE listed "management groups" first under governance, which reads as management-group-level governance | Nothing is assigned to a management group and the subscription is not under the hierarchy | Each now says: policy is assigned at resource group scope; the management group hierarchy is prepared but empty until ADR 0001's check is done |
 
 ## Decisions taken without your answer (you asked for an end-to-end build)
 
 | Question | Default chosen | Change it in |
 |---|---|---|
 | Budget amount | $20 a month | `budget_amount`, `infra/governance/variables.tf` |
-| Budget email | Not committed. Repository variable `BUDGET_ALERT_EMAIL` | GitHub variables |
+| Budget email | Not committed. Actions secret `BUDGET_ALERT_EMAIL` (was a variable until 2026-11-04) | GitHub secrets |
 | Region | `francecentral` | `location` in each stack |
 | Workload always on? | No: apply for demos, destroy after | COST.md |
 | Role on `law-huginn` for the policy identity | Yes | `grant_policy_identity_on_huginn_workspace` |
@@ -154,4 +181,5 @@ Last updated: 2026-11-04.
 | 2026-11-03 | 0 | Plan and questions. Tools installed. Huginn inventory read |
 | 2026-11-03 | 1 to 5, 7 | Bootstrap, governance, network, workload, conftest rules, policy tests, workflows and docs written on `bastion-dev`. Nothing applied |
 | 2026-11-04 | review | Compared with Azure Landing Zones, MCSB v2 and Microsoft Learn. 11 controls added, network made Deny-compatible, compliance report added, ADRs 0003, 0004, 0007, 0008 revised, ADR 0009 and ALZ-ALIGNMENT added, blog post written. Nothing applied |
+| 2026-11-04 | security review fixes | Branch `fix/review-2026-11-04`. Finding 1 (high): identity moved to `bastion-identity-rg`, apply limited to read and attach on it, destination-only role and delete lock on `law-huginn`, identity-carrying compute denied, conftest rule. Finding 2 (medium): Resource Policy Contributor and Security Admin replaced by three custom roles. Finding 3 (low): budget address sensitive and an Actions secret. Finding 4 (docs): resource-group scope stated. Corrections 18 to 24. Nothing applied |
 | | 6 | Waiting for Audit results from a real apply |

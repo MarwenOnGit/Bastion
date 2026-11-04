@@ -1,8 +1,11 @@
 # Bastion
 
-A small, secure-by-default Azure landing zone in Terraform: governance (management
-groups, policy, budget), a hub-and-spoke network, private access to PaaS services, least
-privilege, and a pipeline that proves the guardrails work by trying to break them.
+A small, secure-by-default Azure landing zone in Terraform: governance (a policy
+initiative, a budget, a management group hierarchy), a hub-and-spoke network, private
+access to PaaS services, least privilege, and a pipeline that proves the guardrails work
+by trying to break them.
+
+Scope, stated once and plainly: policy is assigned at resource group scope; the management group hierarchy is prepared but empty until ADR 0001's check is done.
 
 > **Name:** this is the **Bastion landing zone**. It does not deploy Azure Bastion,
 > Microsoft's paid jump-host service. See [ADR 0007](docs/adr/0007-no-firewall-gateway-or-azure-bastion-service.md).
@@ -64,12 +67,33 @@ More diagrams (management groups, subnets, NSGs, pipeline) in
 
 | Stack | Contents | Run by |
 |---|---|---|
-| [infra/bootstrap](infra/bootstrap) | 4 resource groups, Entra-ID-only state storage, 3 GitHub OIDC identities with ID-based subjects, their roles, custom role "Bastion VM Operator", policy remediation identity, management groups `bastion` > `platform`, `landing-zones`, `sandbox` | you, on your laptop |
+| [infra/bootstrap](infra/bootstrap) | 5 resource groups (including `bastion-identity-rg`, which holds only the policy identity), Entra-ID-only state storage, 3 GitHub OIDC identities with ID-based subjects, their roles, 6 custom roles, the policy remediation identity, management groups `bastion` > `platform`, `landing-zones`, `sandbox` (empty), and on `law-huginn` a destination-only role and a delete lock | you, on your laptop |
 | [infra/governance](infra/governance) | `bastion-baseline` (21 controls: 23 built-ins, 6 custom definitions), assignments on the Bastion groups, budget, Defender for Cloud free tier and security contact | `apply.yml`, approved by you |
 | [infra/network](infra/network) | hub and spoke VNets, peering, subnets declared with their NSG (explicit deny-all) and no default outbound access, private DNS zones | `apply.yml` |
 | [infra/workload](infra/workload) | storage account and Key Vault, public access off, 2 private endpoints | `apply.yml`, for demos |
 
-No public IPs, no VMs, no firewall, no gateways, no paid Defender plans.
+No public IPs, no VMs or other compute that can carry an identity, no firewall, no
+gateways, no paid Defender plans.
+
+### Who can do what
+
+| Identity | Roles | Scope |
+|---|---|---|
+| `bastion-github-plan` | Reader; Storage Blob Data Reader | subscription; state container |
+| `bastion-github-apply` | Reader, Cost Management Contributor | subscription |
+| | Bastion Policy Author (custom: policy and initiative definitions) | subscription |
+| | Bastion Defender Settings (custom: plan pricing, security contact) | subscription |
+| | Bastion Policy Assigner (custom: policy assignments) | the four Bastion groups (subscription only if `allow_subscription_audit_assignment`) |
+| | Contributor | `bastion-hub-rg`, `bastion-spoke-app-rg` |
+| | Bastion Policy Identity Reference (custom: read and attach) | `id-bastion-policy` only |
+| | Storage Blob Data Contributor | state container |
+| `bastion-policy-tester` | Contributor | `bastion-test-rg` |
+| `id-bastion-policy` (policy remediation) | Monitoring Contributor, Website Contributor | `bastion-hub-rg`, `bastion-spoke-app-rg`, `bastion-test-rg` |
+| | Bastion Diagnostics Destination (custom: workspace read and shared keys) | `law-huginn` only |
+
+No CI identity has Owner, User Access Administrator, RBAC Administrator, any Microsoft Graph
+permission, or any write on `bastion-identity-rg`. Why each role is there:
+[ADR 0006](docs/adr/0006-ci-identities-and-least-privilege.md).
 
 ## What is enforced
 
@@ -82,7 +106,7 @@ Nothing yet: every control is in its audit effect until its Audit results are re
 | Key Vault | no public network access, RBAC permission model, purge protection | Deny | NS-2, PA-7, DP-8 |
 | Containers and apps | ACR admin user off; App Service and Functions SCM and FTP basic auth reported and turned off | Deny, DeployIfNotExists | IM-1 |
 | Network | every subnet has an NSG, no default outbound access, no NIC public IP, no SSH or RDP from the internet | Deny | NS-1 (built-in twin) |
-| Cost and exposure | no firewalls, gateways, Azure Bastion service, DDoS plans, public IPs or VMs | Deny | none |
+| Cost and exposure | no firewalls, gateways, Azure Bastion service, DDoS plans, public IPs, VMs, or other compute that can carry an identity | Deny | none |
 | Governance | allowed locations, required tags `owner`, `env`, `project` | Deny | none |
 | Logging | diagnostic settings to `law-huginn`; diagnostic settings cannot be deleted | DeployIfNotExists, DenyAction | LT-4 |
 | Protection | resources tagged `bastion-protected` cannot be deleted | DenyAction | none |
@@ -107,7 +131,8 @@ RBAC ([ADR 0008](docs/adr/0008-rbac-for-actions-policy-cannot-block.md)).
 | `policy-tests.yml` | manual and nightly, environment `bastion-policy-tests` | `bastion-policy-tester` (Contributor on `bastion-test-rg` only) |
 
 Every action is pinned to a commit SHA, every workflow starts with `permissions: {}`, and
-no secret exists anywhere: Azure logins use OIDC only.
+no credential exists anywhere: Azure logins use OIDC only. The single Actions secret is the
+budget alert address, kept as a secret only so it is redacted from public logs.
 
 ## Getting started
 

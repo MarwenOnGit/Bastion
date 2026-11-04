@@ -23,7 +23,9 @@ create more subscriptions, and the subscription also holds the Huginn and Fenrir
 
 2. Resource groups are the boundary for RBAC (each CI identity is scoped to groups) and
    for policy (bastion-baseline is assigned per group, see ADR 0002).
-3. The management group hierarchy (`bastion` > `bastion-platform`,
+3. In short: policy is assigned at resource group scope; the management group hierarchy
+   is prepared but empty until this ADR's check (below) is done.
+   The management group hierarchy (`bastion` > `bastion-platform`,
    `bastion-landing-zones`, `bastion-sandbox`) is created for structure and to show the
    target design. The subscription is **not** moved under it by default.
 
