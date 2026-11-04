@@ -113,3 +113,44 @@ expect_denied() {
   log "PASS: RequestDisallowedByPolicy from ${BASTION_ASSIGNMENT}/${expected_ref}"
   return 0
 }
+
+# expect_delete_denied <provider/type> <name> <api-version> <json-body> <expected-reference-id>
+# For DenyAction controls. Makes sure the protected canary exists (a PUT is not a
+# delete, so DenyAction allows it), then tries to DELETE it. Passes only if Azure
+# refuses the DELETE (HTTP 403) and the answer names bastion-baseline. The canary
+# carries no bastion-test tag, so cleanup.sh never tries to delete it.
+expect_delete_denied() {
+  local type="$1" name="$2" api="$3" body="$4" expected_ref="$5"
+  local sub url out rc lower
+
+  require_test_rg "$BASTION_TEST_RG"
+  sub="$(subscription_id)"
+  url="https://management.azure.com/subscriptions/${sub}/resourceGroups/${BASTION_TEST_RG}/providers/${type}/${name}?api-version=${api}"
+
+  log "PUT ${type}/${name} (protected canary)"
+  if ! az rest --method put --url "$url" --body "$body" --only-show-errors >/dev/null; then
+    log "FAIL: could not create or update the canary"
+    return 1
+  fi
+
+  log "DELETE ${type}/${name} (expect denyAction by ${BASTION_ASSIGNMENT}/${expected_ref})"
+  set +e
+  out="$(az rest --method delete --url "$url" --only-show-errors 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ $rc -eq 0 ]]; then
+    log "FAIL: Azure deleted the protected canary. Is the control DenyAction and applied? (The next run recreates it.)"
+    return 1
+  fi
+
+  lower="$(tr '[:upper:]' '[:lower:]' <<<"$out")"
+  if ! grep -qE "forbidden|403|denyaction|disallowed by policy" <<<"$lower" || ! grep -q "$BASTION_ASSIGNMENT" <<<"$lower"; then
+    log "FAIL: delete failed, but not because of ${BASTION_ASSIGNMENT}:"
+    printf '%s\n' "$out" >&2
+    return 1
+  fi
+
+  log "PASS: delete refused by ${BASTION_ASSIGNMENT}/${expected_ref}"
+  return 0
+}

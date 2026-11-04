@@ -150,3 +150,21 @@ def test_no_deny_or_dine_at_subscription_scope():
 def test_no_vm_in_always_on_design():
     for rtype in ["azurerm_linux_virtual_machine", "azurerm_windows_virtual_machine", "azurerm_virtual_machine"]:
         assert not re.search(rf'resource\s+"{rtype}"', tf_text()), rtype
+
+
+def test_subnets_are_inline_with_an_nsg():
+    """subnet_nsg (ALZ Deny-Subnet-Without-Nsg) denies a subnet created before its NSG
+    association, so every subnet is declared inside its VNet with security_group set."""
+    text = tf_text()
+    assert not re.search(r'resource\s+"azurerm_subnet"\s', text)
+    assert not re.search(r'resource\s+"azurerm_subnet_network_security_group_association"', text)
+    for b in resource_blocks(tf_text("network"), "azurerm_virtual_network"):
+        assert "security_group" in b and "default_outbound_access_enabled = false" in b
+
+
+def test_providers_are_pinned_to_a_minor_version():
+    for p in tf_files():
+        for m in re.finditer(r'version\s*=\s*"([^"]+)"', p.read_text()):
+            v = m.group(1)
+            if v.startswith("~>"):
+                assert re.fullmatch(r"~> \d+\.\d+", v), f"{p}: {v} (pin at least the minor version)"

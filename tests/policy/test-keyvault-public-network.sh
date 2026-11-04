@@ -17,6 +17,7 @@ body="$(jq -nc --arg loc "$BASTION_LOCATION" --arg tid "$(tenant_id)" --argjson 
     sku: {family: "A", name: "standard"},
     enableRbacAuthorization: true,
     enableSoftDelete: true,
+    enablePurgeProtection: true,
     softDeleteRetentionInDays: 7,
     publicNetworkAccess: "Enabled"
   }

@@ -129,6 +129,82 @@ deny contains msg if {
 	msg := sprintf("%s: admin_enabled must be false", [rc.address])
 }
 
+deny contains msg if {
+	some rc in changes
+	rc.type == "azurerm_storage_account"
+	not rc.change.after.https_traffic_only_enabled == true
+	msg := sprintf("%s: https_traffic_only_enabled must be true", [rc.address])
+}
+
+deny contains msg if {
+	some rc in changes
+	rc.type == "azurerm_storage_account"
+	not rc.change.after.min_tls_version == "TLS1_2"
+	msg := sprintf("%s: min_tls_version must be TLS1_2", [rc.address])
+}
+
+deny contains msg if {
+	some rc in changes
+	rc.type == "azurerm_storage_account"
+	not rc.change.after.allow_nested_items_to_be_public == false
+	msg := sprintf("%s: allow_nested_items_to_be_public must be false", [rc.address])
+}
+
+deny contains msg if {
+	some rc in changes
+	rc.type == "azurerm_key_vault"
+	not rc.change.after.purge_protection_enabled == true
+	msg := sprintf("%s: purge_protection_enabled must be true", [rc.address])
+}
+
+# --- network ------------------------------------------------------------------
+
+# A standalone subnet is created before its NSG association, which the subnet_nsg
+# control (ALZ Deny-Subnet-Without-Nsg) denies. Subnets are declared inline instead.
+deny contains msg if {
+	some rc in changes
+	rc.type in {"azurerm_subnet", "azurerm_subnet_network_security_group_association"}
+	msg := sprintf("%s: declare subnets inline in azurerm_virtual_network with security_group (subnet_nsg control)", [rc.address])
+}
+
+deny contains msg if {
+	some rc in changes
+	rc.type == "azurerm_virtual_network"
+	some sn in object.get(rc.change.after, "subnet", [])
+
+	# Terraform leaves values that are unknown until apply (a new NSG's ID) out of
+	# `after`, so only an explicit null or empty string counts as "no NSG".
+	object.get(sn, "security_group", "(known after apply)") in {null, ""}
+	not sn.name in nsg_exempt_subnets
+	msg := sprintf("%s: subnet %s has no security_group", [rc.address, sn.name])
+}
+
+deny contains msg if {
+	some rc in changes
+	rc.type == "azurerm_virtual_network"
+	some sn in object.get(rc.change.after, "subnet", [])
+	not sn.default_outbound_access_enabled == false
+	msg := sprintf("%s: subnet %s must set default_outbound_access_enabled = false", [rc.address, sn.name])
+}
+
+# Same exclusions as the ALZ policy.
+nsg_exempt_subnets := {"GatewaySubnet", "AzureFirewallSubnet", "AzureFirewallManagementSubnet", "RouteServerSubnet"}
+
+management_ports := {"22", "3389", "*"}
+
+internet_sources := {"*", "Internet", "0.0.0.0/0", "Any"}
+
+deny contains msg if {
+	some rc in changes
+	rc.type == "azurerm_network_security_rule"
+	a := rc.change.after
+	a.direction == "Inbound"
+	a.access == "Allow"
+	a.source_address_prefix in internet_sources
+	a.destination_port_range in management_ports
+	msg := sprintf("%s: inbound %s from the internet is not allowed (mgmt_ports_internet control)", [rc.address, a.destination_port_range])
+}
+
 # --- privilege ----------------------------------------------------------------
 
 deny contains msg if {

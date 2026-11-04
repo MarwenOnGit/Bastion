@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Run the Bastion policy tests.
 #
-# A test runs only when its control is Deny in policies/effects.json, because an
-# Audit policy blocks nothing and the test would (correctly) fail.
+# A test runs only when its control is Deny (or DenyAction) in policies/effects.json,
+# because an Audit policy blocks nothing and the test would (correctly) fail.
 #
-#   tests/policy/run-all.sh                    run every test whose control is Deny
+#   tests/policy/run-all.sh                    run every test whose control is enforced
 #   tests/policy/run-all.sh --force <control>  run one test whatever the effect
 #                                              (the "red" half of the demo)
 #   tests/policy/run-all.sh --list             show each test, its control and effect
@@ -54,13 +54,13 @@ for t in "$here"/test-*.sh; do
   run=false
   if [[ "$mode" == "force" ]]; then
     [[ "$control" == "$force_control" ]] && run=true
-  elif [[ "$effect" == "Deny" ]]; then
+  elif [[ "$effect" == "Deny" || "$effect" == "DenyAction" ]]; then
     run=true
   fi
 
   if [[ "$run" != true ]]; then
     skip=$((skip + 1))
-    echo "| $name | $control | $effect | skipped (not Deny) |" >>"$summary"
+    echo "| $name | $control | $effect | skipped (not enforced) |" >>"$summary"
     continue
   fi
 

@@ -8,9 +8,18 @@ rcn(type, name, after) := {"address": sprintf("%s.%s", [type, name]), "type": ty
 
 plan(changes) := {"resource_changes": changes}
 
-good_storage := {"shared_access_key_enabled": false, "public_network_access_enabled": false, "resource_group_name": "bastion-spoke-app-rg"}
+good_storage := {
+	"shared_access_key_enabled": false,
+	"public_network_access_enabled": false,
+	"https_traffic_only_enabled": true,
+	"min_tls_version": "TLS1_2",
+	"allow_nested_items_to_be_public": false,
+	"resource_group_name": "bastion-spoke-app-rg",
+}
 
-good_kv := {"public_network_access_enabled": false, "enable_rbac_authorization": true, "resource_group_name": "bastion-spoke-app-rg"}
+good_kv := {"public_network_access_enabled": false, "rbac_authorization_enabled": true, "purge_protection_enabled": true, "resource_group_name": "bastion-spoke-app-rg"}
+
+good_subnet := {"name": "snet-app", "security_group": "/subscriptions/x/resourceGroups/bastion-spoke-app-rg/providers/Microsoft.Network/networkSecurityGroups/nsg", "default_outbound_access_enabled": false}
 
 test_compliant_workload_passes if {
 	count(deny) == 0 with input as plan([
@@ -59,11 +68,58 @@ test_storage_public_denied if {
 }
 
 test_kv_access_policies_denied if {
-	count(deny) == 1 with input as plan([rc("azurerm_key_vault", object.union(good_kv, {"enable_rbac_authorization": false}))])
+	count(deny) == 1 with input as plan([rc("azurerm_key_vault", object.union(good_kv, {"rbac_authorization_enabled": false}))])
 }
 
-test_kv_new_rbac_argument_accepted if {
-	count(deny) == 0 with input as plan([rc("azurerm_key_vault", {"public_network_access_enabled": false, "rbac_authorization_enabled": true, "resource_group_name": "bastion-spoke-app-rg"})])
+test_kv_old_rbac_argument_accepted if {
+	count(deny) == 0 with input as plan([rc("azurerm_key_vault", object.union(object.remove(good_kv, ["rbac_authorization_enabled"]), {"enable_rbac_authorization": true}))])
+}
+
+test_kv_without_purge_protection_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_key_vault", object.union(good_kv, {"purge_protection_enabled": false}))])
+}
+
+test_storage_http_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_storage_account", object.union(good_storage, {"https_traffic_only_enabled": false}))])
+}
+
+test_storage_old_tls_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_storage_account", object.union(good_storage, {"min_tls_version": "TLS1_0"}))])
+}
+
+test_storage_public_blobs_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_storage_account", object.union(good_storage, {"allow_nested_items_to_be_public": true}))])
+}
+
+test_standalone_subnet_denied if {
+	count(deny) == 2 with input as plan([
+		rc("azurerm_subnet", {"resource_group_name": "bastion-spoke-app-rg"}),
+		rc("azurerm_subnet_network_security_group_association", {}),
+	])
+}
+
+test_vnet_with_inline_nsg_subnets_passes if {
+	count(deny) == 0 with input as plan([rc("azurerm_virtual_network", {"resource_group_name": "bastion-spoke-app-rg", "subnet": [good_subnet]})])
+}
+
+test_vnet_subnet_without_nsg_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_virtual_network", {"resource_group_name": "bastion-spoke-app-rg", "subnet": [object.union(good_subnet, {"security_group": null})]})])
+}
+
+test_gateway_subnet_exempt_from_nsg if {
+	count(deny) == 0 with input as plan([rc("azurerm_virtual_network", {"resource_group_name": "bastion-hub-rg", "subnet": [object.union(good_subnet, {"name": "GatewaySubnet", "security_group": null})]})])
+}
+
+test_vnet_subnet_with_default_outbound_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_virtual_network", {"resource_group_name": "bastion-spoke-app-rg", "subnet": [object.union(good_subnet, {"default_outbound_access_enabled": true})]})])
+}
+
+test_ssh_from_internet_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_network_security_rule", {"resource_group_name": "bastion-hub-rg", "direction": "Inbound", "access": "Allow", "source_address_prefix": "*", "destination_port_range": "22"})])
+}
+
+test_https_from_subnet_allowed if {
+	count(deny) == 0 with input as plan([rc("azurerm_network_security_rule", {"resource_group_name": "bastion-spoke-app-rg", "direction": "Inbound", "access": "Allow", "source_address_prefix": "10.20.1.0/24", "destination_port_range": "443"})])
 }
 
 test_acr_admin_denied if {
@@ -135,4 +191,8 @@ test_paid_defender_denied if {
 
 test_deletes_are_ignored if {
 	count(deny) == 0 with input as {"resource_changes": [{"address": "azurerm_public_ip.old", "type": "azurerm_public_ip", "change": {"actions": ["delete"], "after": null}}]}
+}
+
+test_vnet_subnet_nsg_known_after_apply_passes if {
+	count(deny) == 0 with input as plan([rc("azurerm_virtual_network", {"resource_group_name": "bastion-spoke-app-rg", "subnet": [object.remove(good_subnet, ["security_group"])]})])
 }
