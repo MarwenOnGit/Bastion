@@ -3,7 +3,7 @@
 Nothing is "working" or "enforced" until a real run has proved it. This file records what
 was actually checked, when, and how.
 
-Last updated: 2026-11-03.
+Last updated: 2026-11-04.
 
 ## Summary
 
@@ -11,7 +11,7 @@ Last updated: 2026-11-03.
 |---|---|---|
 | Terraform code, all 4 stacks | Written. `terraform validate` passes | GitHub Actions `ci` on `bastion-dev`, 2026-11-03 (real provider download) |
 | Static checks (fmt, tflint with azurerm ruleset, checkov, conftest verify) | Pass | GitHub Actions `ci`, 2026-11-03 |
-| pytest static checks, shellcheck | Pass locally; on GitHub once the docs commit lands | Build session, 2026-11-03 |
+| pytest static checks, shellcheck | Pass | GitHub Actions `ci`, 2026-11-03; locally after every change |
 | Bootstrap applied | **No.** Waiting for you | |
 | Governance applied (Audit mode) | **No** | |
 | Network applied | **No** | |
@@ -22,31 +22,59 @@ Last updated: 2026-11-03.
 
 ## Control status
 
-| Control | Effect now | Applied | Policy test result |
-|---|---|---|---|
-| `storage_shared_key` | Audit | no | not run |
-| `storage_public_network` | Audit | no | not run |
-| `keyvault_public_network` | Audit | no | not run |
-| `acr_admin_user` | Audit | no | not run |
-| `appservice_basic_auth_audit` | AuditIfNotExists | no | n/a (compliance view) |
-| `appservice_basic_auth_fix` | Disabled | no | n/a (remediation) |
-| `nic_no_public_ip` | Audit | no | not run |
-| `allowed_locations` | Audit | no | not run |
-| `required_tags` | Audit | no | not run |
-| `diagnostic_settings` | AuditIfNotExists | no | n/a (compliance view) |
+| Control | Effect now | Target | Applied | Policy test result |
+|---|---|---|---|---|
+| `storage_shared_key` | Audit | Deny | no | not run |
+| `storage_public_network` | Audit | Deny | no | not run |
+| `keyvault_public_network` | Audit | Deny | no | not run |
+| `acr_admin_user` | Audit | Deny | no | not run |
+| `appservice_basic_auth_audit` | AuditIfNotExists | AuditIfNotExists | no | n/a (compliance report) |
+| `appservice_basic_auth_fix` | Disabled | DeployIfNotExists | no | n/a (compliance report) |
+| `nic_no_public_ip` | Audit | Deny | no | not run |
+| `allowed_locations` | Audit | Deny | no | not run |
+| `required_tags` | Audit | Deny | no | not run |
+| `diagnostic_settings` | AuditIfNotExists | DeployIfNotExists | no | n/a (compliance report) |
+| `storage_secure_transfer` | Audit | Deny | no | not run |
+| `storage_min_tls` | Audit | Deny | no | not run |
+| `storage_blob_public_access` | Audit | Deny | no | not run |
+| `keyvault_rbac` | Audit | Deny | no | not run |
+| `keyvault_purge_protection` | Audit | Deny | no | not run |
+| `subnet_private` | Audit | Deny | no | not run |
+| `subnet_nsg` | Audit | Deny | no | not run |
+| `mgmt_ports_internet` | Audit | Deny | no | not run |
+| `denied_resource_types` | Audit | Deny | no | not run |
+| `protect_diagnostic_settings` | Disabled | DenyAction | no | manual check, not done |
+| `delete_protection` | Disabled | DenyAction | no | not run |
 
-## Verified in the build session (2026-11-03)
+## Verified in the build session (2026-11-03 and 2026-11-04)
 
-- All 16 built-in policy definitions in `policies/initiative.json`: GUID, display name,
+- All 23 built-in policy definitions in `policies/initiative.json`: GUID, display name,
   version, allowed effects and parameter names, against github.com/Azure/azure-policy
-  commit `f096d8d` (2026-10-28). Microsoft Learn was not reachable from the session.
+  commit `f096d8d` (2026-10-28). learn.microsoft.com was not reachable from the session.
+- MCSB groups of every built-in, from the Microsoft cloud security benchmark v2
+  initiative (`e3ec7e09-768c-4b64-882c-fcada3772047` v1.8.0) in the same commit.
+- Azure Landing Zones assignments and definitions compared, and three definitions copied
+  with MIT attribution, from Azure/Azure-Landing-Zones-Library commit `124b242`
+  (2026-10-20).
+- Microsoft Learn statements used in the ADRs, read from the docs source repositories on
+  2026-11-04 (MicrosoftDocs/azure-docs, cloud-adoption-framework, azure-monitor-docs,
+  azure-dev-docs, entra-docs): denyAction supports only `delete`; `DoNotEnforce` writes no
+  Activity log entry; customer-managed deny assignments are private preview; deployment
+  stack deny settings are `DenyDelete` and `DenyWriteAndDelete`; Policy events in the
+  Activity log carry the assignment in `properties.policies`; budgets are supported at
+  subscription scope; CAF's single-subscription scenario.
+- Provider versions resolved by GitHub Actions on 2026-11-03: azurerm 4.81.0, azuread
+  3.10.0, local 2.9.1. Pinned to `~> 4.81`, `~> 3.10`, `~> 2.9`. Inline `subnet` blocks
+  with `security_group` checked in the azurerm v4.81.0 documentation.
 - GitHub numeric IDs: owner `183097322`, repository `1444942400` (GitHub search API).
 - Action SHAs, resolved with `git ls-remote` against the tags: `actions/checkout` v7.0.1,
   `hashicorp/setup-terraform` v4.0.1, `azure/login` v3.1.0 (annotated tag, commit SHA
   used), `actions/setup-python` v7.1.0.
 - tflint 0.55.0 and conftest 0.58.0 release archives: SHA-256 recorded in the workflows.
-- `conftest verify`: 24 of 24 rule tests pass.
-- checkov 3.4.3: 54 passed, 0 failed, 11 skipped, each skip justified in the code.
+- `conftest verify`: 36 of 36 rule tests pass.
+- checkov 3.4.3: 54 passed, 0 failed, 12 skipped, each skip justified in the code.
+- pytest: every policy test script passes only on its own policy's denial, fails on any
+  other, and deletes what was wrongly created, against a fake `az` (offline).
 
 ## Could not verify in the build session (verify in Azure)
 
@@ -65,6 +93,15 @@ Last updated: 2026-11-03.
   (X-11).
 - Ingestion cost of Bastion's diagnostic logs in `law-huginn`.
 - Prices in COST.md and ADR 0007 (from memory; pricing pages were not reachable).
+- That Reader is enough for `az policy state summarize` and `list` (the compliance report
+  runs as the plan identity). Microsoft.PolicyInsights exposes these as read operations.
+- The exact error a DenyAction refusal returns (Learn says HTTP 403). The delete-protection
+  test accepts a 403 or "denyAction" text that names `bastion-baseline`.
+- That `protect_diagnostic_settings` (mode `Indexed`, as in ALZ) evaluates
+  `Microsoft.Insights/diagnosticSettings`, which has no location or tags.
+- That Defender for Cloud's own default assignment (the Microsoft cloud security benchmark
+  at subscription scope) exists on this subscription. Bastion does not assign MCSB itself.
+- The KQL in PREVENT-DETECT against `law-huginn` (field layout of `Properties_d`).
 
 ## Blocked in the build session
 
@@ -91,6 +128,11 @@ Last updated: 2026-11-03.
 | 10 | (not in brief) | azurerm 4.x registers resource providers by default, which CI cannot | CI stacks set `resource_provider_registrations = "none"`; bootstrap registers them |
 | 11 | Workload cost "free where possible" | 2 private endpoints cost about $14.60 a month | Workload is designed to be applied for demos and destroyed (COST.md) |
 | 12 | Plan on pull requests (to be decided) | Safe: identity is read-only, forks get no OIDC token | Enabled |
+| 13 | "Azure Policy cannot block actions" | Policy's `denyAction` effect blocks `delete` (and only `delete`) | Two DenyAction controls; the wording in every doc now says "Deny judges create and update, DenyAction only delete" |
+| 14 | "Real deny on Run Command with deployment stacks" (my roadmap, 2026-11-03) | Stack deny settings are only `DenyDelete` and `DenyWriteAndDelete`; customer-managed deny assignments are private preview | Removed from the roadmap; ADR 0008 corrected |
+| 15 | (my design, 2026-11-03) Subnets as separate `azurerm_subnet` resources | A subnet created before its NSG association violates ALZ's Deny-Subnet-Without-Nsg | Subnets declared inline with `security_group` |
+| 16 | (my code, 2026-11-03) `enable_rbac_authorization` on Key Vault | Deprecated in azurerm 4.x, removed in 5.0 | `rbac_authorization_enabled` |
+| 17 | (my code, 2026-11-03) Providers `~> 4.0` and no lock files | Too loose; HashiCorp recommends committed lock files | Pinned to the minor version CI resolved; SETUP step to create and commit lock files |
 
 ## Decisions taken without your answer (you asked for an end-to-end build)
 
@@ -111,4 +153,5 @@ Last updated: 2026-11-03.
 |---|---|---|
 | 2026-11-03 | 0 | Plan and questions. Tools installed. Huginn inventory read |
 | 2026-11-03 | 1 to 5, 7 | Bootstrap, governance, network, workload, conftest rules, policy tests, workflows and docs written on `bastion-dev`. Nothing applied |
+| 2026-11-04 | review | Compared with Azure Landing Zones, MCSB v2 and Microsoft Learn. 11 controls added, network made Deny-compatible, compliance report added, ADRs 0003, 0004, 0007, 0008 revised, ADR 0009 and ALZ-ALIGNMENT added, blog post written. Nothing applied |
 | | 6 | Waiting for Audit results from a real apply |
