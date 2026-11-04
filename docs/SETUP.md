@@ -1,7 +1,8 @@
 # Setup: the steps only you can do
 
 Everything that changes Azure is run by you: the bootstrap on your laptop, then the
-`apply` workflow that you approve. Nothing here needs a secret.
+`apply` workflow that you approve. No credential is stored anywhere; the only Actions
+secret is your budget alert address, so that it is never printed in public logs.
 
 ## 0. The `main` branch
 
@@ -88,8 +89,8 @@ Settings > Environments:
 
 ## 4. GitHub repository variables
 
-Settings > Secrets and variables > Actions > **Variables** (not secrets; none of these is
-secret). The values come from the bootstrap output:
+Settings > Secrets and variables > Actions > **Variables**. None of these is secret. The
+values come from the bootstrap output:
 
 ```bash
 terraform -chdir=infra/bootstrap output -json github_variables
@@ -101,14 +102,25 @@ Set them all with the GitHub CLI:
 terraform -chdir=infra/bootstrap output -json github_variables | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r k v; do gh variable set "$k" --repo MarwenOnGit/Bastion --body "$v"; done
 ```
 
-Then add the two that are not in the output:
-
-```bash
-gh variable set BUDGET_ALERT_EMAIL --repo MarwenOnGit/Bastion --body "<your alert address>"
-```
+Then add the region, which is not in the output:
 
 ```bash
 gh variable set BASTION_LOCATION --repo MarwenOnGit/Bastion --body "francecentral"
+```
+
+The budget alert address is a **secret**, not a variable. GitHub Docs ("Variables"):
+"variables render unmasked in your build outputs", and this repository's logs are public.
+Secrets are redacted. `gh secret set` prompts for the value, so it never lands in your
+shell history:
+
+```bash
+gh secret set BUDGET_ALERT_EMAIL --repo MarwenOnGit/Bastion
+```
+
+If you created a `BUDGET_ALERT_EMAIL` variable before 2026-11-04, delete it:
+
+```bash
+gh variable delete BUDGET_ALERT_EMAIL --repo MarwenOnGit/Bastion
 ```
 
 | Variable | Used by |
@@ -118,8 +130,11 @@ gh variable set BASTION_LOCATION --repo MarwenOnGit/Bastion --body "francecentra
 | `AZURE_APPLY_CLIENT_ID` | apply |
 | `AZURE_TESTER_CLIENT_ID` | policy-tests |
 | `TFSTATE_STORAGE_ACCOUNT` | plan, apply, drift |
-| `BUDGET_ALERT_EMAIL` | governance stack (budget) |
 | `BASTION_LOCATION` | policy-tests |
+
+| Secret | Used by |
+|---|---|
+| `BUDGET_ALERT_EMAIL` | governance stack: budget alerts and the Defender security contact. Read only by the step that builds `TF_VAR_budget_alert_emails`, which masks it; Terraform marks it sensitive |
 
 The budget amount defaults to $20 a month. To change it, edit `budget_amount` in
 `infra/governance/variables.tf` in a pull request.

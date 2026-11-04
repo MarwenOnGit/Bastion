@@ -279,7 +279,7 @@ purge protection. One nuance worth knowing: with shared keys disabled, account a
 SAS tokens stop working, but a **user delegation SAS** (signed with Entra ID) still works
 for anyone with the data role to create one.
 
-## Identity: no secrets anywhere
+## Identity: no credentials anywhere
 
 GitHub Actions authenticates with **OIDC** (workload identity federation). There is no
 client secret, certificate or storage key anywhere in the project.

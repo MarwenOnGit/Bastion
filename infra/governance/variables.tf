@@ -121,8 +121,9 @@ variable "budget_amount" {
 }
 
 variable "budget_alert_emails" {
-  description = "Addresses that get budget alerts. Set through the BUDGET_ALERT_EMAIL repository variable (TF_VAR_budget_alert_emails), never committed."
+  description = "Addresses that get budget alerts and Defender for Cloud security alerts (the security contact uses the first one). Personal data: set through the BUDGET_ALERT_EMAIL Actions secret (TF_VAR_budget_alert_emails), never committed, never printed."
   type        = list(string)
+  sensitive   = true
 
   validation {
     condition     = length(var.budget_alert_emails) > 0 && alltrue([for e in var.budget_alert_emails : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", e))])

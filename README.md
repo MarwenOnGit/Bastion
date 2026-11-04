@@ -107,7 +107,8 @@ RBAC ([ADR 0008](docs/adr/0008-rbac-for-actions-policy-cannot-block.md)).
 | `policy-tests.yml` | manual and nightly, environment `bastion-policy-tests` | `bastion-policy-tester` (Contributor on `bastion-test-rg` only) |
 
 Every action is pinned to a commit SHA, every workflow starts with `permissions: {}`, and
-no secret exists anywhere: Azure logins use OIDC only.
+no credential exists anywhere: Azure logins use OIDC only. The single Actions secret is the
+budget alert address, kept as a secret only so it is redacted from public logs.
 
 ## Getting started
 

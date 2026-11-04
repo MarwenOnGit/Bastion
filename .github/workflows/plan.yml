@@ -45,7 +45,6 @@ jobs:
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
-      BUDGET_ALERT_EMAIL: ${{ vars.BUDGET_ALERT_EMAIL }}
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       STACK: ${{ matrix.stack }}
@@ -66,9 +65,16 @@ jobs:
           tar -xzf /tmp/conftest.tgz -C /tmp conftest
           sudo install -m 0755 /tmp/conftest /usr/local/bin/conftest
 
+      # The address is personal data. It is an Actions secret (redacted in logs), only this
+      # step sees it, and the derived value is masked too. Terraform marks it sensitive.
       - name: Budget email for the governance stack
         if: matrix.stack == 'governance'
-        run: echo "TF_VAR_budget_alert_emails=$(jq -cn --arg e "$BUDGET_ALERT_EMAIL" '[$e]')" >> "$GITHUB_ENV"
+        env:
+          BUDGET_ALERT_EMAIL: ${{ secrets.BUDGET_ALERT_EMAIL }}
+        run: |
+          emails="$(jq -cn --arg e "$BUDGET_ALERT_EMAIL" '[$e]')"
+          echo "::add-mask::$emails"
+          echo "TF_VAR_budget_alert_emails=$emails" >> "$GITHUB_ENV"
 
       - name: terraform init
         run: terraform -chdir="infra/$STACK" init -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"

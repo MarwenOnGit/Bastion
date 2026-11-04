@@ -158,13 +158,14 @@ Last updated: 2026-11-04.
 | 20 | (my docs) ADR 0006 called the `law-huginn` role "the one role assignment Bastion makes in huginn-sentinel-rg" | There are now two writes there: the role assignment and the lock | Reworded in ADR 0006 and in `roles.tf` |
 | 21 | (security review 2, medium) Apply had Resource Policy Contributor at subscription scope | It covers assignments, exemptions and remediation everywhere in the subscription | Custom roles: Bastion Policy Author (definitions, subscription) and Bastion Policy Assigner (assignments, Bastion groups only; subscription only with `allow_subscription_audit_assignment`) |
 | 22 | (security review 2, medium) Apply had Security Admin at subscription scope | It covers all of `Microsoft.Security/*`, and also `policyAssignments/*` at subscription scope (Learn, built-in roles for Security) | Custom role Bastion Defender Settings: `pricings/{read,write}`, `securityContacts/{read,write,delete}` |
+| 23 | (security review 3, low) Budget email as a repository variable, in job-level `env` | GitHub Docs: variables render unmasked in logs, and job `env` is printed in every step header of these public logs; Terraform did not mark it sensitive | Actions secret, read only by the step that builds `TF_VAR_budget_alert_emails` (which masks it); `sensitive = true` on `budget_alert_emails`, which also feeds the security contact |
 
 ## Decisions taken without your answer (you asked for an end-to-end build)
 
 | Question | Default chosen | Change it in |
 |---|---|---|
 | Budget amount | $20 a month | `budget_amount`, `infra/governance/variables.tf` |
-| Budget email | Not committed. Repository variable `BUDGET_ALERT_EMAIL` | GitHub variables |
+| Budget email | Not committed. Actions secret `BUDGET_ALERT_EMAIL` (was a variable until 2026-11-04) | GitHub secrets |
 | Region | `francecentral` | `location` in each stack |
 | Workload always on? | No: apply for demos, destroy after | COST.md |
 | Role on `law-huginn` for the policy identity | Yes | `grant_policy_identity_on_huginn_workspace` |
