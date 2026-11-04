@@ -2,6 +2,7 @@ name: drift
 
 # Nightly plan with the read-only identity. Red if Azure differs from Terraform
 # (terraform plan -detailed-exitcode returns 2). Scheduled runs use main.
+# Also publishes the bastion-baseline compliance report (Phase 6 input).
 
 on:
   schedule:
@@ -83,3 +84,24 @@ jobs:
             2) echo "::error::Drift detected in $STACK: Azure differs from Terraform."; exit 1 ;;
             *) cat plan.txt; exit "$code" ;;
           esac
+
+  compliance:
+    name: compliance report
+    if: vars.AZURE_PLAN_CLIENT_ID != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_PLAN_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Compliance report to job summary
+        run: tests/policy/compliance-report.sh >> "$GITHUB_STEP_SUMMARY"
