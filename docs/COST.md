@@ -63,6 +63,9 @@ Then on your laptop:
 terraform -chdir=infra/bootstrap destroy
 ```
 
+The bootstrap destroy also removes the `CanNotDelete` lock on `law-huginn`; until then
+Huginn's own teardown cannot delete its workspace.
+
 Notes:
 
 - The Key Vault has purge protection. After destroy it stays soft-deleted for 7 days (no

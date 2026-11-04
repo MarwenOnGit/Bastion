@@ -102,6 +102,20 @@ Last updated: 2026-11-04.
 - That Defender for Cloud's own default assignment (the Microsoft cloud security benchmark
   at subscription scope) exists on this subscription. Bastion does not assign MCSB itself.
 - The KQL in PREVENT-DETECT against `law-huginn` (field layout of `Properties_d`).
+- That Bastion Diagnostics Destination (`workspaces/read` + `workspaces/sharedKeys/action`)
+  is enough for a DeployIfNotExists remediation to create a diagnostic setting that sends
+  to `law-huginn`. Learn documents it for users configuring diagnostic settings; the
+  policy deployment path is not described separately. Fallback:
+  `narrow_huginn_workspace_role = false`.
+- That Monitoring Contributor alone (without the Log Analytics Contributor the Key Vault
+  and NSG built-ins list in `roleDefinitionIds`) lets the remediation deploy. Fallback:
+  `policy_identity_log_analytics_contributor = true`.
+- That Azure Policy checks `userAssignedIdentities/assign/action` when a policy
+  assignment references a user-assigned identity. Learn states the rule for assigning a
+  user-assigned identity to any resource; it is not stated for policy assignments in
+  particular. If it is not checked, the custom role is harmless and can be removed.
+- Which Huginn operations the `CanNotDelete` lock on `law-huginn` blocks besides deleting
+  the workspace (Learn: extension resources inherit the lock).
 
 ## Blocked in the build session
 
@@ -133,6 +147,9 @@ Last updated: 2026-11-04.
 | 15 | (my design, 2026-11-03) Subnets as separate `azurerm_subnet` resources | A subnet created before its NSG association violates ALZ's Deny-Subnet-Without-Nsg | Subnets declared inline with `security_group` |
 | 16 | (my code, 2026-11-03) `enable_rbac_authorization` on Key Vault | Deprecated in azurerm 4.x, removed in 5.0 | `rbac_authorization_enabled` |
 | 17 | (my code, 2026-11-03) Providers `~> 4.0` and no lock files | Too loose; HashiCorp recommends committed lock files | Pinned to the minor version CI resolved; SETUP step to create and commit lock files |
+| 18 | (security review 1, high) Apply had Contributor on `bastion-hub-rg`, where `id-bastion-policy` lived, so it could attach the identity to new compute and run code as it; the identity had Log Analytics Contributor (`Microsoft.OperationalInsights/*`) on `law-huginn` | Attaching a user-assigned identity needs `assign/action` on it (Learn, managed identities FAQ); Contributor includes it | Identity moved to `bastion-identity-rg` (no CI Contributor); apply gets only read + `assign/action` on the identity (custom role); identity-carrying compute denied; conftest rule; destination-only role on `law-huginn`; `CanNotDelete` lock on `law-huginn` |
+| 19 | (security review 1c) Log Analytics Contributor on the Bastion groups, as the diagnostic built-ins list it | It brings `virtualMachines/extensions/*` and `listKeys`; Monitoring Contributor already has `DiagnosticSettings/*` and `deployments/*` (Learn, built-in roles for Monitor) | Monitoring Contributor only, behind `policy_identity_log_analytics_contributor` (default false) |
+| 20 | (my docs) ADR 0006 called the `law-huginn` role "the one role assignment Bastion makes in huginn-sentinel-rg" | There are now two writes there: the role assignment and the lock | Reworded in ADR 0006 and in `roles.tf` |
 
 ## Decisions taken without your answer (you asked for an end-to-end build)
 

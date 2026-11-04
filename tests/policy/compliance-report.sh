@@ -11,7 +11,7 @@
 set -euo pipefail
 
 assignment="bastion-baseline"
-groups=(bastion-hub-rg bastion-spoke-app-rg bastion-test-rg)
+groups=(bastion-hub-rg bastion-spoke-app-rg bastion-test-rg bastion-identity-rg)
 scan=false
 
 args=()

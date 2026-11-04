@@ -22,6 +22,7 @@ flowchart TB
     hub["bastion-hub-rg<br/>platform / connectivity"]
     spoke["bastion-spoke-app-rg<br/>landing zone / workload"]
     test["bastion-test-rg<br/>sandbox / policy tests"]
+    idrg["bastion-identity-rg<br/>id-bastion-policy only<br/>(no CI Contributor)"]
   end
   state["bastion-tfstate-rg<br/>state, owned by the bootstrap<br/>(no assignment, ADR 0002)"]
 
@@ -34,7 +35,7 @@ flowchart TB
   end
 
   defs -. "assigned with real effects" .-> bastion_rgs
-  bastion_rgs -. "diagnostic settings (DeployIfNotExists)" .-> h2
+  bastion_rgs -. "diagnostic settings (DeployIfNotExists)<br/>destination-only role + delete lock" .-> h2
 ```
 
 ## Network
@@ -50,7 +51,6 @@ flowchart LR
     end
     dnsb["privatelink.blob.core.windows.net"]
     dnsv["privatelink.vaultcore.azure.net"]
-    uai["id-bastion-policy<br/>(policy remediation identity)"]
   end
 
   subgraph spokerg["bastion-spoke-app-rg"]

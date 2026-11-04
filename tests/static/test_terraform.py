@@ -168,3 +168,97 @@ def test_providers_are_pinned_to_a_minor_version():
             v = m.group(1)
             if v.startswith("~>"):
                 assert re.fullmatch(r"~> \d+\.\d+", v), f"{p}: {v} (pin at least the minor version)"
+
+
+# --- review finding 1: CI to law-huginn through id-bastion-policy ----------------
+
+IDENTITY_CARRYING_TYPES = [
+    "Microsoft.ContainerInstance/containerGroups",
+    "Microsoft.Automation/automationAccounts",
+    "Microsoft.Resources/deploymentScripts",
+    "Microsoft.App/containerApps",
+    "Microsoft.App/jobs",
+    "Microsoft.Web/sites",
+    "Microsoft.Batch/batchAccounts",
+    "Microsoft.Logic/workflows",
+]
+
+AZURERM_IDENTITY_CARRYING = [
+    "azurerm_container_group",
+    "azurerm_automation_account",
+    "azurerm_resource_deployment_script_azure_cli",
+    "azurerm_resource_deployment_script_azure_power_shell",
+    "azurerm_container_app",
+    "azurerm_container_app_job",
+    "azurerm_linux_web_app",
+    "azurerm_windows_web_app",
+    "azurerm_linux_function_app",
+    "azurerm_windows_function_app",
+    "azurerm_batch_account",
+    "azurerm_logic_app_workflow",
+]
+
+
+def test_policy_identity_has_its_own_group():
+    roles = (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+    uai = roles.split('resource "azurerm_user_assigned_identity" "policy"', 1)[1].split("\n}\n", 1)[0]
+    assert 'azurerm_resource_group.this["identity"].name' in uai
+    assert '"bastion-identity-rg"' in (ROOT / "infra" / "bootstrap" / "main.tf").read_text()
+    gov = (ROOT / "infra" / "governance" / "variables.tf").read_text()
+    assert 'default     = "bastion-identity-rg"' in gov.split('variable "policy_identity_resource_group"', 1)[1]
+    assert '"bastion-identity-rg"' in gov.split('variable "assignment_resource_groups"', 1)[1].split("}", 1)[0]
+
+
+def test_no_ci_identity_has_write_on_identity_group():
+    roles = (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+    ci = roles.split("ci_role_assignments = {", 1)[1].split("\n  }\n", 1)[0]
+    assert 'rg_ids["identity"]' not in ci, "no CI role assignment may target bastion-identity-rg"
+
+
+def test_apply_only_references_the_identity():
+    roles = (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+    role = roles.split('resource "azurerm_role_definition" "policy_identity_reference"', 1)[1].split("\n}\n", 1)[0]
+    actions = re.findall(r'"(Microsoft\.[^"]+)"', role)
+    assert sorted(actions) == [
+        "Microsoft.ManagedIdentity/userAssignedIdentities/assign/action",
+        "Microsoft.ManagedIdentity/userAssignedIdentities/read",
+    ]
+    ra = roles.split('resource "azurerm_role_assignment" "apply_policy_identity_reference"', 1)[1].split("\n}\n", 1)[0]
+    assert "scope                            = azurerm_user_assigned_identity.policy.id" in ra
+
+
+def test_huginn_workspace_role_is_narrow_by_default():
+    roles = (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+    role = roles.split('resource "azurerm_role_definition" "diagnostics_destination"', 1)[1].split("\n}\n", 1)[0]
+    assert sorted(re.findall(r'"(Microsoft\.[^"]+)"', role)) == [
+        "Microsoft.OperationalInsights/workspaces/read",
+        "Microsoft.OperationalInsights/workspaces/sharedKeys/action",
+    ]
+    v = (ROOT / "infra" / "bootstrap" / "variables.tf").read_text()
+    assert re.search(r'variable "narrow_huginn_workspace_role" \{[^}]*default     = true', v, re.S)
+    assert re.search(r'variable "policy_identity_log_analytics_contributor" \{[^}]*default     = false', v, re.S)
+
+
+def test_huginn_workspace_is_locked_by_default():
+    roles = (ROOT / "infra" / "bootstrap" / "roles.tf").read_text()
+    lock = roles.split('resource "azurerm_management_lock" "huginn_workspace"', 1)[1].split("\n}\n", 1)[0]
+    assert 'lock_level = "CanNotDelete"' in lock and "local.huginn_workspace_id" in lock
+    v = (ROOT / "infra" / "bootstrap" / "variables.tf").read_text()
+    assert re.search(r'variable "lock_huginn_workspace" \{[^}]*default     = true', v, re.S)
+
+
+@pytest.mark.parametrize("rtype", IDENTITY_CARRYING_TYPES)
+def test_identity_carrying_compute_is_denied(rtype):
+    gov = (ROOT / "infra" / "governance" / "variables.tf").read_text()
+    block = gov.split('variable "denied_resource_types"', 1)[1].split("\n}\n", 1)[0]
+    assert f'"{rtype}"' in block
+
+
+@pytest.mark.parametrize("rtype", AZURERM_IDENTITY_CARRYING)
+def test_stacks_use_no_identity_carrying_compute(rtype):
+    assert not re.search(rf'resource\s+"{rtype}"', tf_text()), f"{rtype} would be denied by denied_resource_types"
+
+
+def test_denied_types_test_covers_a_container_group():
+    script = (ROOT / "tests" / "policy" / "test-denied-resource-types.sh").read_text()
+    assert "Microsoft.ContainerInstance/containerGroups" in script

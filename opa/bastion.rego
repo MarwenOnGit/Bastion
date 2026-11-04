@@ -222,6 +222,33 @@ deny contains msg if {
 	msg := sprintf("%s: assigning a privileged role (%s) is not allowed from CI", [rc.address, rid])
 }
 
+# --- policy identity ----------------------------------------------------------
+
+# id-bastion-policy has write rights for diagnostic settings and a destination role on
+# law-huginn. Anything that carries it can act as it. Only policy assignments may
+# reference it (review finding 1, docs/PREVENT-DETECT.md).
+policy_identity_name := "id-bastion-policy"
+
+policy_assignment_types := {
+	"azurerm_resource_group_policy_assignment",
+	"azurerm_subscription_policy_assignment",
+	"azurerm_management_group_policy_assignment",
+	"azurerm_resource_policy_assignment",
+}
+
+references_policy_identity(after) if {
+	some idb in object.get(after, "identity", [])
+	some id in object.get(idb, "identity_ids", [])
+	endswith(lower(id), sprintf("/userassignedidentities/%s", [policy_identity_name]))
+}
+
+deny contains msg if {
+	some rc in changes
+	not rc.type in policy_assignment_types
+	references_policy_identity(rc.change.after)
+	msg := sprintf("%s: only policy assignments may use %s (it can write diagnostic settings and reach law-huginn)", [rc.address, policy_identity_name])
+}
+
 # --- scope safety -------------------------------------------------------------
 
 deny contains msg if {

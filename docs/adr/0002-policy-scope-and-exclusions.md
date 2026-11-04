@@ -12,10 +12,11 @@ The subscription also holds labs that must keep working:
 
 ## Decision
 
-1. **Definitions** (two custom definitions and the `bastion-baseline` initiative) live at
+1. **Definitions** (the custom definitions and the `bastion-baseline` initiative) live at
    subscription scope. They have no effect until assigned.
 2. **Assignments with real effects** (Deny, DeployIfNotExists) are made only at the
-   Bastion resource groups: `bastion-hub-rg`, `bastion-spoke-app-rg`, `bastion-test-rg`.
+   Bastion resource groups: `bastion-hub-rg`, `bastion-spoke-app-rg`, `bastion-test-rg`,
+   `bastion-identity-rg`.
    The Terraform variable has a validation that rejects any group not starting with
    `bastion-`, and `opa/bastion.rego` rejects a plan that assigns to another group.
 3. **No management group assignment** at all.
@@ -28,9 +29,10 @@ The subscription also holds labs that must keep working:
    must be listed in `existing_prefixed_protected_groups`. A `ctf-` group created later is
    **not** excluded until it is added. Because that assignment is audit-only, the worst
    case is a compliance report on a CTF group, never a blocked or changed resource.
-6. The policy identity `id-bastion-policy` has roles only on the three Bastion groups (and
-   Log Analytics Contributor on `law-huginn` to point diagnostic settings at it). Even a
-   wrongly configured DeployIfNotExists could not deploy into a protected group.
+6. The policy identity `id-bastion-policy` has write roles only on three Bastion groups,
+   and only a destination role (`workspaces/read`, `workspaces/sharedKeys/action`) on
+   `law-huginn` (ADR 0006). Even a wrongly configured DeployIfNotExists could not deploy
+   into a protected group.
 7. `bastion-tfstate-rg` is not in the assignment list: the bootstrap owns it, and a Deny
    there could lock the pipeline out of its own state.
 

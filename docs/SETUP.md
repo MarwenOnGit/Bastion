@@ -36,10 +36,21 @@ az account set --subscription 42146134-9464-4c2d-86b0-afe414704284
 
 ## 2. Bootstrap (once)
 
-Read the plan before you apply it. It creates 4 resource groups, the state account, 3 app
-registrations with federated credentials, role assignments, 1 custom role, 1 managed
-identity, 4 management groups, a diagnostic setting on the state account, and one role
-assignment on `law-huginn`.
+Read the plan before you apply it. It creates 5 resource groups (including
+`bastion-identity-rg`, which holds only the policy identity), the state account, 3 app
+registrations with federated credentials, role assignments, custom roles, 1 managed
+identity, 4 management groups and a diagnostic setting on the state account. Outside
+Bastion's groups it makes exactly two writes, both on `law-huginn`: a role assignment
+(Bastion Diagnostics Destination) and a `CanNotDelete` lock.
+
+**The lock on `law-huginn` affects the Huginn repo.** While it exists, nobody can delete
+the workspace, including `terraform destroy` or a replacement in the Huginn repo.
+Microsoft Learn ("Lock your resources") says extension resources inherit a lock from the
+resource they are applied to, so deleting resources scoped on the workspace (for example
+Sentinel content Huginn manages) may be refused too: verify in Azure. A delete lock does
+not stop data purge. To remove the lock, set `lock_huginn_workspace = false` in
+`infra/bootstrap` and apply the bootstrap, then make the Huginn change, then turn it back
+on.
 
 ```bash
 terraform -chdir=infra/bootstrap init

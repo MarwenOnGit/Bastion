@@ -22,6 +22,9 @@ locals {
     hub       = "bastion-hub-rg"
     spoke_app = "bastion-spoke-app-rg"
     test      = "bastion-test-rg"
+    # Holds only id-bastion-policy. No CI identity has Contributor here, so CI cannot
+    # change, replace or delete the identity (review finding 1, docs/adr/0006).
+    identity = "bastion-identity-rg"
   }
 
   tfstate_account_name   = "stbastiontf${local.suffix}"

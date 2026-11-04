@@ -6,7 +6,7 @@ control) and [policies/definitions/](../policies/definitions/) (the six custom
 definitions). The table below is generated from those files.
 
 **Scope of every assignment with real effects:** `bastion-hub-rg`, `bastion-spoke-app-rg`,
-`bastion-test-rg` (ADR [0002](adr/0002-policy-scope-and-exclusions.md)). An optional
+`bastion-test-rg`, `bastion-identity-rg` (ADR [0002](adr/0002-policy-scope-and-exclusions.md)). An optional
 subscription assignment is audit-only and excludes every protected group.
 
 **Status as of 2026-11-04:** written and statically tested. Not yet applied to Azure.
@@ -66,7 +66,11 @@ Its remediation identity and roles are in ADR [0006](adr/0006-ci-identities-and-
 `denied_resource_types` in `infra/governance`): Azure Firewall and firewall policies, the
 Azure Bastion service, VPN and virtual network gateways, ExpressRoute circuits and
 gateways, DDoS protection plans, Application Gateway, NAT gateway, Virtual WAN hubs,
-public IPs and prefixes, VMs and scale sets.
+public IPs and prefixes, VMs and scale sets, and every other compute type that can carry
+a managed identity: container groups, Automation accounts, deployment scripts, Container
+Apps and jobs, App Service and Function Apps (`Microsoft.Web/sites`), Batch accounts and
+Logic Apps. Because `Microsoft.Web/sites` is denied, the App Service basic-auth controls
+have nothing to evaluate today; they stay as a second layer in case the deny is relaxed.
 
 ## The custom definitions and why each exists
 

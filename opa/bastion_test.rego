@@ -196,3 +196,37 @@ test_deletes_are_ignored if {
 test_vnet_subnet_nsg_known_after_apply_passes if {
 	count(deny) == 0 with input as plan([rc("azurerm_virtual_network", {"resource_group_name": "bastion-spoke-app-rg", "subnet": [object.remove(good_subnet, ["security_group"])]})])
 }
+
+policy_identity_id := "/subscriptions/x/resourceGroups/bastion-identity-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-bastion-policy"
+
+test_policy_identity_on_policy_assignment_allowed if {
+	count(deny) == 0 with input as plan([rc("azurerm_resource_group_policy_assignment", {
+		"resource_group_id": "/subscriptions/x/resourceGroups/bastion-spoke-app-rg",
+		"identity": [{"type": "UserAssigned", "identity_ids": [policy_identity_id]}],
+	})])
+}
+
+test_policy_identity_on_container_group_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_container_group", {
+		"resource_group_name": "bastion-spoke-app-rg",
+		"identity": [{"type": "UserAssigned", "identity_ids": [policy_identity_id]}],
+	})])
+}
+
+test_policy_identity_case_insensitive_denied if {
+	count(deny) == 1 with input as plan([rc("azurerm_linux_function_app", {
+		"resource_group_name": "bastion-spoke-app-rg",
+		"identity": [{"type": "UserAssigned", "identity_ids": [upper(policy_identity_id)]}],
+	})])
+}
+
+test_other_identity_allowed if {
+	count(deny) == 0 with input as plan([rc("azurerm_container_group", {
+		"resource_group_name": "bastion-spoke-app-rg",
+		"identity": [{"type": "UserAssigned", "identity_ids": ["/subscriptions/x/resourceGroups/bastion-spoke-app-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-app"]}],
+	})])
+}
+
+test_system_assigned_identity_allowed if {
+	count(deny) == 0 with input as plan([rc("azurerm_container_group", {"resource_group_name": "bastion-spoke-app-rg", "identity": [{"type": "SystemAssigned"}]})])
+}

@@ -78,7 +78,25 @@ variable "huginn_workspace" {
 }
 
 variable "grant_policy_identity_on_huginn_workspace" {
-  description = "Grant the policy identity Log Analytics Contributor on law-huginn. This is a role assignment in huginn-sentinel-rg (no resource there changes). Without it the diagnostic-settings policies can report but not deploy."
+  description = "Grant the policy identity a role on law-huginn so diagnostic settings can send to it (Bastion Diagnostics Destination by default, see narrow_huginn_workspace_role). A role assignment in huginn-sentinel-rg; no setting of the workspace changes. Without it the diagnostic-settings policies can report but not deploy."
+  type        = bool
+  default     = true
+}
+
+variable "narrow_huginn_workspace_role" {
+  description = "Use the custom role Bastion Diagnostics Destination (workspaces/read + workspaces/sharedKeys/action) on law-huginn instead of Log Analytics Contributor. Set to false only if Azure refuses the diagnostic-settings deployment with the narrow role."
+  type        = bool
+  default     = true
+}
+
+variable "policy_identity_log_analytics_contributor" {
+  description = "Also grant the policy identity Log Analytics Contributor on the Bastion groups, as the KV and NSG diagnostic built-ins list it. Off: Monitoring Contributor covers diagnostic settings and deployments. Turn on only if remediation fails without it."
+  type        = bool
+  default     = false
+}
+
+variable "lock_huginn_workspace" {
+  description = "Put a CanNotDelete lock on law-huginn. While it exists, nobody can delete the workspace, including Huginn's own Terraform (terraform destroy in the Huginn repo fails until this is set to false and the bootstrap is applied)."
   type        = bool
   default     = true
 }
