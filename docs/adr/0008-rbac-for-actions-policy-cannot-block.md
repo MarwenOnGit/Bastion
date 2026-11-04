@@ -1,11 +1,13 @@
 # ADR 0008: RBAC for actions that Azure Policy cannot block
 
-Date: 2026-11-03. Status: accepted.
+Date: 2026-11-03, revised 2026-11-04. Status: accepted.
 
 ## Context
 
-Azure Policy evaluates resource **properties** on create and update (PUT and PATCH). It
-does not evaluate **actions** (POST to `.../action` endpoints). So Policy cannot stop:
+Azure Policy's Deny effect evaluates resource **properties** on create and update (PUT
+and PATCH). Its `denyAction` effect blocks one action only: `delete` (Microsoft Learn,
+"denyAction effect": "The only supported action today is `DELETE`"). Nothing in Policy
+evaluates other **actions** (POST to `.../action` endpoints). So Policy cannot stop:
 
 | Fenrir | Action |
 |---|---|
@@ -35,12 +37,22 @@ can stop the action.
    Run Command. It can only be used from a job in the `bastion-apply` environment, which
    you approve. That is a time-boxed, approved use, not a standing one.
 
+Bastion does use `denyAction` where it fits: `protect_diagnostic_settings` (nobody can
+delete a diagnostic setting to blind Huginn) and `delete_protection` (nobody can delete
+the policy remediation identity). Both follow Azure Landing Zones definitions.
+
 ## What NotActions does and does not do
 
 `NotActions` subtracts from **that role only**. It is not a deny. If the same principal
-also has Contributor from another assignment, Run Command is allowed. Real deny needs Azure
-deny assignments, which customers can only create through Azure Blueprints (being retired)
-or deployment stacks with deny settings. Deployment stacks are a candidate for the roadmap.
+also has Contributor from another assignment, Run Command is allowed.
+
+A real deny for an action needs an Azure deny assignment, and today customers cannot
+create one directly. Microsoft Learn ("List Azure deny assignments") says
+customer-managed deny assignments are in **private preview**; in general availability,
+Azure creates them for you, for example from a **deployment stack** with deny settings.
+Deployment stack deny settings only offer `DenyDelete` and `DenyWriteAndDelete`, which
+protect the managed resources against changes and deletion. They are not a way to forbid
+Run Command on a VM. So for X-08 and X-14, least privilege remains the control.
 
 ## Gap
 

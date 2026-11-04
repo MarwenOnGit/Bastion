@@ -1,6 +1,6 @@
 # ADR 0005: GitHub Actions authenticates with OIDC and ID-based subjects
 
-Date: 2026-11-03. Status: accepted.
+Date: 2026-11-03, revised 2026-11-04. Status: accepted.
 
 ## Decision
 
@@ -13,9 +13,14 @@ Date: 2026-11-03. Status: accepted.
    repo:MarwenOnGit@183097322/Bastion@1444942400:<context>
    ```
 
-   Name-only subjects (`repo:MarwenOnGit/Bastion:...`) are rejected for these repositories
-   with AADSTS700213. ID-based subjects have a second benefit: if the repository is
-   deleted and a new one is created with the same name, the old trust does not carry over.
+   GitHub calls these **immutable subject claims**. Its OIDC reference says repositories
+   created after July 15, 2026 use them by default, and that repositories renamed or
+   transferred after that date move to them too ("OpenID Connect reference", section
+   "Immutable subject claims", docs.github.com, read from the github/docs source on
+   2026-11-04). Bastion was created after that date, so a name-only subject
+   (`repo:MarwenOnGit/Bastion:...`) never matches the token and Entra ID answers
+   AADSTS700213. The point of the format: if a repository is deleted and someone creates a
+   new one with the same name, the old trust does not carry over to it.
 3. Each identity trusts the narrowest contexts it needs:
 
    | Identity | Trusted subjects |

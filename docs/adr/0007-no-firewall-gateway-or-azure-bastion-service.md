@@ -29,8 +29,13 @@ renumbering:
 | 10.10.0.64/27 | GatewaySubnet |
 | 10.10.0.128/26 | AzureBastionSubnet (the Microsoft jump-host service) |
 
-`opa/bastion.rego` and `tests/static/test_terraform.py` reject any plan or code that
-adds these resource types, or a public IP.
+Three layers keep them out:
+
+- `tests/static/test_terraform.py` rejects the code;
+- `opa/bastion.rego` rejects a plan that contains them;
+- the `denied_resource_types` policy control (built-in "Not allowed resource types",
+  `6c112d4e-5bc7-47ae-a041-ea2d9dccd749`) makes Azure itself refuse them in the Bastion
+  groups once it is in Deny, whoever deploys and however.
 
 ## Where they would sit in production
 
