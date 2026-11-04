@@ -100,7 +100,10 @@ resource "azurerm_user_assigned_identity" "policy" {
   name                = "id-bastion-policy"
   resource_group_name = azurerm_resource_group.this["hub"].name
   location            = var.location
-  tags                = local.tags
+
+  # bastion-protected = true: the delete_protection control (DenyAction) blocks deleting
+  # it once that control is on. Destroy the governance stack before the bootstrap.
+  tags = merge(local.tags, { "bastion-protected" = "true" })
 }
 
 locals {
