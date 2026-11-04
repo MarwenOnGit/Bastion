@@ -52,11 +52,37 @@ def test_id_token_only_on_azure_jobs(wf):
             assert perms.get("id-token") == "write", f"{wf.name}/{name}: logs in to Azure without id-token write"
 
 
+# The only secret allowed is the budget alert address: personal data, not a credential.
+# Variables render unmasked in logs (GitHub Docs, "Variables"); secrets are redacted.
+ALLOWED_SECRETS = {"BUDGET_ALERT_EMAIL"}
+
+
 @pytest.mark.parametrize("wf", WORKFLOWS, ids=lambda p: p.name)
-def test_no_secrets_used(wf):
+def test_no_credential_secrets_used(wf):
     text = wf.read_text()
-    assert "secrets." not in text.replace("secrets.GITHUB_TOKEN", ""), f"{wf.name}: uses a secret; OIDC only"
+    used = set(re.findall(r"secrets\.([A-Za-z0-9_]+)", text)) - {"GITHUB_TOKEN"}
+    assert used <= ALLOWED_SECRETS, f"{wf.name}: uses secrets {used - ALLOWED_SECRETS}; Azure auth is OIDC only"
     assert "client-secret" not in text and "ARM_CLIENT_SECRET" not in text
+
+
+@pytest.mark.parametrize("wf", WORKFLOWS, ids=lambda p: p.name)
+def test_budget_email_never_printed(wf):
+    """The address only reaches the one step that builds TF_VAR_budget_alert_emails,
+    from a secret, never from a variable, never in job-level env."""
+    text = wf.read_text()
+    assert "vars.BUDGET_ALERT_EMAIL" not in text
+    for name, job in load(wf)["jobs"].items():
+        assert "BUDGET_ALERT_EMAIL" not in (job.get("env") or {}), f"{wf.name}/{name}: job-level env is printed in every step"
+        for step in job.get("steps", []):
+            if "BUDGET_ALERT_EMAIL" in str(step.get("env") or {}):
+                assert step["name"] == "Budget email for the governance stack"
+                assert "::add-mask::" in step["run"]
+
+
+def test_budget_email_is_sensitive_in_terraform():
+    v = (ROOT / "infra" / "governance" / "variables.tf").read_text()
+    block = v.split('variable "budget_alert_emails"', 1)[1].split("validation", 1)[0]
+    assert "sensitive   = true" in block
 
 
 def test_ci_has_no_azure_access():

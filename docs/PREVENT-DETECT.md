@@ -60,7 +60,8 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 | X-13 | Logic App `listCallbackUrl` | Limits: no standing Logic App Contributor or Contributor. Policy cannot block it | `logicapp-callback-listed` **validated** 2026-11-03 | Contributor can still do it |
 | X-14 | Container Instances exec | **Prevents (designed), by RBAC:** Bastion VM Operator excludes `containers/exec/action`; no standing Contributor. Policy cannot block it | `aci-exec` (not validated) | Contributor can still do it; session content is never logged |
 | X-15 to X-18 | Automation Account reads: runbooks, **runbook source**, variables, credential names | Limits: no Automation Accounts in Bastion; no standing Automation roles | none possible | Blind spot. Reading runbook source leaves no record anywhere |
-| X-19 to X-21 | Reads as the stolen managed identity from the operator's IP | Limits: Bastion's only managed identity (`id-bastion-policy`) has roles on the Bastion groups and `law-huginn` only | none possible | Blind spot |
+| X-19 to X-21 | Reads as the stolen managed identity from the operator's IP | Limits: Bastion's only managed identity (`id-bastion-policy`) has write roles on three Bastion groups and a destination-only role on `law-huginn`; nothing that can carry it can be created (see "Found in review" below) | none possible | Blind spot |
+| R-01 (review, not a Fenrir operation) | Create compute in a Bastion group, attach `id-bastion-policy`, run code as it, then delete or tamper with `law-huginn` | **Prevents (designed):** compute that can carry an identity is denied; the identity is alone in `bastion-identity-rg`; its role on `law-huginn` is destination-only; the workspace has a delete lock; conftest fails such a plan | KQL in "Found in review" below (not tested, no Huginn rule yet) | The apply identity keeps `assign/action` on the identity; the shared keys allow false records |
 
 ## post-exploit
 
@@ -72,6 +73,53 @@ Scope: Bastion's controls apply to the Bastion resource groups. In the Fenrir la
 | D-01 | Blob listing and download (account key or OAuth) | **Prevents (designed):** shared key off (no key auth), `storage_public_network` (no path from the operator's machine, even with an OAuth token), `storage_blob_public_access` (no anonymous containers), `storage_secure_transfer` and `storage_min_tls` (no clear text, no old TLS) | `StorageBlobLogs` reach `law-huginn` through `diagnostic_settings` once it is DeployIfNotExists; no Huginn rule yet | A principal inside the VNet with a data role can still read. With shared keys off, account and service SAS stop working, but a user delegation SAS (signed with Entra ID) still works for anyone with the role to create one |
 | D-02 | File share listing and download | Same as D-01 | `StorageFileLogs`: not in Bastion's diagnostic settings (blob only) | No file log collection |
 | D-03 | ACR token exchange, catalog, image pull | Prevents admin-credential use (designed); no registry exists in Bastion | out of scope in Huginn | No registry logs |
+
+## Found in review: CI to law-huginn through the policy identity
+
+The 2026-11-04 security review found a path that no Fenrir operation uses, but that
+Fenrir's own logic (steal an identity by running code on something that carries it)
+would exploit.
+
+| Step | Before the fix | After the fix |
+|---|---|---|
+| 1. The apply identity (or anyone holding Contributor on `bastion-hub-rg` or `bastion-spoke-app-rg`) creates compute: a container group, Function App, Automation account or deployment script | allowed | **Denied** by `denied_resource_types` once it is Deny; the conftest rule already fails the plan |
+| 2. It attaches `id-bastion-policy` to that compute | allowed: Contributor on `bastion-hub-rg`, where the identity lived, includes `assign/action` | Still possible for the apply identity, which needs `assign/action` on the identity to create policy assignments (ADR 0006). Nobody else has it. The identity moved to `bastion-identity-rg`, where no CI identity has Contributor |
+| 3. The code runs and gets a token for `id-bastion-policy` | allowed | Not possible without step 1 |
+| 4. With that token, it deletes or reconfigures `law-huginn` | allowed: Log Analytics Contributor includes `Microsoft.OperationalInsights/*` | The identity only has `workspaces/read` and `workspaces/sharedKeys/action` there, and a `CanNotDelete` lock protects the workspace |
+
+What is still open:
+
+- The apply identity keeps `assign/action` on `id-bastion-policy`. A malicious workflow
+  change merged to `main` and approved in `bastion-apply` could attach it to a resource type
+  that is not on the deny list. Your pull request review is the control for that, and the
+  query below is the detection.
+- `workspaces/sharedKeys/action` returns the workspace keys. Anyone holding the identity
+  could send false records into `law-huginn` (but not read, change or delete what is
+  there).
+- The deny list names the compute types known on 2026-11-04. A new Azure service that can
+  carry a user-assigned identity is not covered until it is added.
+
+**Detection for Huginn** (Bastion does not change the Huginn repo; this is the hand-off).
+Any create or update whose request puts `id-bastion-policy` on a resource, other than a
+policy assignment. **Not yet tested against `law-huginn`:** `Properties_d.requestbody` is
+only filled for some resource providers and can be truncated, so check that a test write
+appears before relying on it.
+
+```kusto
+AzureActivity
+| where TimeGenerated > ago(1d)
+| where OperationNameValue endswith "/WRITE"
+| where OperationNameValue !startswith "MICROSOFT.AUTHORIZATION/POLICYASSIGNMENTS"
+| extend RequestBody = tostring(Properties_d.requestbody)
+| where RequestBody has "id-bastion-policy"
+    or tostring(Properties_d) has "userAssignedIdentities/id-bastion-policy"
+| project TimeGenerated, Caller, CallerIpAddress, OperationNameValue,
+          ActivityStatusValue, ResourceGroup, _ResourceId, CorrelationId
+| order by TimeGenerated desc
+```
+
+ARM template deployments (`MICROSOFT.RESOURCES/DEPLOYMENTS/WRITE`) are included on
+purpose: attaching the identity inside a deployment is the most likely way to do it.
 
 ## Defence evasion: deleting the logs
 

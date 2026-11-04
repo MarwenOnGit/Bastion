@@ -55,22 +55,25 @@ tenant_id() {
   fi
 }
 
-# Resource URL the trap must delete if a PUT is accepted.
-__bastion_created_url=""
+# Resource URLs the trap must delete if a PUT is accepted (a test can make several).
+__bastion_created_urls=()
 
 __bastion_cleanup_trap() {
-  if [[ -n "$__bastion_created_url" ]]; then
-    log "deleting unexpectedly created resource: $__bastion_created_url"
-    local i
+  local url i deleted
+  for url in "${__bastion_created_urls[@]}"; do
+    log "deleting unexpectedly created resource: $url"
+    deleted=false
     for i in 1 2 3 4 5; do
-      if az rest --method delete --url "$__bastion_created_url" --only-show-errors >/dev/null 2>&1; then
-        __bastion_created_url=""
-        return 0
+      if az rest --method delete --url "$url" --only-show-errors >/dev/null 2>&1; then
+        deleted=true
+        break
       fi
       sleep $((i * 10))
     done
-    log "could not delete it; the cleanup job will retry (tag bastion-test=true)"
-  fi
+    if [[ "$deleted" != true ]]; then
+      log "could not delete it; the cleanup job will retry (tag bastion-test=true)"
+    fi
+  done
 }
 
 trap __bastion_cleanup_trap EXIT
@@ -91,7 +94,7 @@ expect_denied() {
   set -e
 
   if [[ $rc -eq 0 ]]; then
-    __bastion_created_url="$url"
+    __bastion_created_urls+=("$url")
     log "FAIL: Azure accepted the non-compliant resource. Is the control in Deny and applied?"
     return 1
   fi

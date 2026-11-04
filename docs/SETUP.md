@@ -1,7 +1,8 @@
 # Setup: the steps only you can do
 
 Everything that changes Azure is run by you: the bootstrap on your laptop, then the
-`apply` workflow that you approve. Nothing here needs a secret.
+`apply` workflow that you approve. No credential is stored anywhere; the only Actions
+secret is your budget alert address, so that it is never printed in public logs.
 
 ## 0. The `main` branch
 
@@ -36,10 +37,21 @@ az account set --subscription 42146134-9464-4c2d-86b0-afe414704284
 
 ## 2. Bootstrap (once)
 
-Read the plan before you apply it. It creates 4 resource groups, the state account, 3 app
-registrations with federated credentials, role assignments, 1 custom role, 1 managed
-identity, 4 management groups, a diagnostic setting on the state account, and one role
-assignment on `law-huginn`.
+Read the plan before you apply it. It creates 5 resource groups (including
+`bastion-identity-rg`, which holds only the policy identity), the state account, 3 app
+registrations with federated credentials, role assignments, custom roles, 1 managed
+identity, 4 management groups and a diagnostic setting on the state account. Outside
+Bastion's groups it makes exactly two writes, both on `law-huginn`: a role assignment
+(Bastion Diagnostics Destination) and a `CanNotDelete` lock.
+
+**The lock on `law-huginn` affects the Huginn repo.** While it exists, nobody can delete
+the workspace, including `terraform destroy` or a replacement in the Huginn repo.
+Microsoft Learn ("Lock your resources") says extension resources inherit a lock from the
+resource they are applied to, so deleting resources scoped on the workspace (for example
+Sentinel content Huginn manages) may be refused too: verify in Azure. A delete lock does
+not stop data purge. To remove the lock, set `lock_huginn_workspace = false` in
+`infra/bootstrap` and apply the bootstrap, then make the Huginn change, then turn it back
+on.
 
 ```bash
 terraform -chdir=infra/bootstrap init
@@ -77,8 +89,8 @@ Settings > Environments:
 
 ## 4. GitHub repository variables
 
-Settings > Secrets and variables > Actions > **Variables** (not secrets; none of these is
-secret). The values come from the bootstrap output:
+Settings > Secrets and variables > Actions > **Variables**. None of these is secret. The
+values come from the bootstrap output:
 
 ```bash
 terraform -chdir=infra/bootstrap output -json github_variables
@@ -90,14 +102,25 @@ Set them all with the GitHub CLI:
 terraform -chdir=infra/bootstrap output -json github_variables | jq -r 'to_entries[] | "\(.key) \(.value)"' | while read -r k v; do gh variable set "$k" --repo MarwenOnGit/Bastion --body "$v"; done
 ```
 
-Then add the two that are not in the output:
-
-```bash
-gh variable set BUDGET_ALERT_EMAIL --repo MarwenOnGit/Bastion --body "<your alert address>"
-```
+Then add the region, which is not in the output:
 
 ```bash
 gh variable set BASTION_LOCATION --repo MarwenOnGit/Bastion --body "francecentral"
+```
+
+The budget alert address is a **secret**, not a variable. GitHub Docs ("Variables"):
+"variables render unmasked in your build outputs", and this repository's logs are public.
+Secrets are redacted. `gh secret set` prompts for the value, so it never lands in your
+shell history:
+
+```bash
+gh secret set BUDGET_ALERT_EMAIL --repo MarwenOnGit/Bastion
+```
+
+If you created a `BUDGET_ALERT_EMAIL` variable before 2026-11-04, delete it:
+
+```bash
+gh variable delete BUDGET_ALERT_EMAIL --repo MarwenOnGit/Bastion
 ```
 
 | Variable | Used by |
@@ -107,8 +130,11 @@ gh variable set BASTION_LOCATION --repo MarwenOnGit/Bastion --body "francecentra
 | `AZURE_APPLY_CLIENT_ID` | apply |
 | `AZURE_TESTER_CLIENT_ID` | policy-tests |
 | `TFSTATE_STORAGE_ACCOUNT` | plan, apply, drift |
-| `BUDGET_ALERT_EMAIL` | governance stack (budget) |
 | `BASTION_LOCATION` | policy-tests |
+
+| Secret | Used by |
+|---|---|
+| `BUDGET_ALERT_EMAIL` | governance stack: budget alerts and the Defender security contact. Read only by the step that builds `TF_VAR_budget_alert_emails`, which masks it; Terraform marks it sensitive |
 
 The budget amount defaults to $20 a month. To change it, edit `budget_amount` in
 `infra/governance/variables.tf` in a pull request.

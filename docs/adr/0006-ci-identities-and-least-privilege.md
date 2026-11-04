@@ -1,6 +1,6 @@
 # ADR 0006: CI identities and least privilege
 
-Date: 2026-11-03. Status: accepted.
+Date: 2026-11-03, revised 2026-11-04 (security review). Status: accepted.
 
 ## Decision
 
@@ -21,21 +21,64 @@ read-only identity cannot take it, and a plan that does not apply has nothing to
 | Role | Scope | Why |
 |---|---|---|
 | Reader | subscription | Read data sources (resource groups, DNS zones, subnets) |
-| Resource Policy Contributor | subscription | Policy definitions, the initiative and assignments |
+| Bastion Policy Author (custom) | subscription | Write the custom policy definitions and the initiative, which must live at subscription scope |
+| Bastion Policy Assigner (custom) | `bastion-hub-rg`, `bastion-spoke-app-rg`, `bastion-test-rg`, `bastion-identity-rg` (and the subscription only if `allow_subscription_audit_assignment`) | Create the `bastion-baseline` assignments |
 | Cost Management Contributor | subscription | The budget |
-| Security Admin | subscription | The Defender for Cloud free tier setting |
-| Contributor | `bastion-hub-rg`, `bastion-spoke-app-rg` | Network and workload resources; assign the policy identity |
+| Bastion Defender Settings (custom) | subscription | The Defender for Cloud free tier setting and the security contact |
+| Contributor | `bastion-hub-rg`, `bastion-spoke-app-rg` | Network and workload resources |
+| Bastion Policy Identity Reference (custom) | the `id-bastion-policy` resource only | Attach the policy identity to `bastion-baseline` assignments |
 | Storage Blob Data Contributor | `tfstate` container | Write state and take locks |
+
+Changed in the 2026-11-04 security review (finding 2). Before, apply held two built-in roles
+at subscription scope:
+
+- **Resource Policy Contributor**: `policyassignments/*`, `policydefinitions/*`,
+  `policyexemptions/*`, `policyenrollments/*`, `policysetdefinitions/*`,
+  `Microsoft.PolicyInsights/*` and `Microsoft.Resources/deployments/*`, everywhere in the
+  subscription. It could create a Deny assignment on the Fenrir lab, or an exemption.
+- **Security Admin**: `Microsoft.Security/*` (every Defender plan, including paid ones),
+  and also `Microsoft.Authorization/policyAssignments/*`, `policyDefinitions/*` and
+  `policyExemptions/*` at subscription scope. So it was a second route to the same
+  policy rights.
+
+Now the three custom roles carry only the operations the governance stack performs
+(names from Microsoft Learn, "Azure permissions for Management and governance" and
+"Azure permissions for Security"):
+
+| Custom role | Actions |
+|---|---|
+| Bastion Policy Author | `Microsoft.Authorization/policyDefinitions/{read,write,delete}`, `policySetDefinitions/{read,write,delete}` |
+| Bastion Policy Assigner | `Microsoft.Authorization/policyAssignments/{read,write,delete}` |
+| Bastion Defender Settings | `Microsoft.Security/pricings/{read,write}`, `securityContacts/{read,write,delete}` |
+
+Why each is enough, and what was not verified:
+
+- The assignments reference a definition at subscription scope; reading it is covered by
+  Reader.
+- Attaching `id-bastion-policy` to an assignment is covered by Bastion Policy Identity
+  Reference (above).
+- azurerm 4.81 never deletes a pricing: its destroy sets the plan back to Free with an
+  Update, so `pricings/delete` is not needed (provider source,
+  `security_center_subscription_pricing_resource.go`).
+- No exemptions, enrolments or remediation tasks are created by Terraform, so none of
+  those rights are granted. A remediation task for existing resources would have to be
+  started by hand (STATUS, Could not verify).
+- Not verified in Azure: that these operations are all ARM checks for the plan the
+  governance stack produces. If an apply fails with `AuthorizationFailed`, the error names
+  the missing action; add only that action.
 
 Residual risk, stated plainly:
 
-- Resource Policy Contributor at subscription scope could create a Deny assignment on a
-  protected group. Three layers stop that from happening by accident: the Terraform
-  variable validation, the conftest rule run before every apply, and your review in the
-  `bastion-apply` environment. None of them stops a malicious workflow change merged to
-  main; your review of the pull request does.
-- Security Admin could enable a paid Defender plan. conftest rejects any tier other than
-  Free.
+- Bastion Policy Author at subscription scope could change a policy definition. It cannot
+  assign one outside the Bastion groups.
+- With `allow_subscription_audit_assignment = true`, Bastion Policy Assigner at
+  subscription scope could create an assignment anywhere in the subscription. Three
+  layers stop that from happening by accident: the Terraform variable validation, the
+  conftest rule run before every apply, and your review in the `bastion-apply`
+  environment. None of them stops a malicious workflow change merged to main; your review
+  of the pull request does. It is off by default.
+- Bastion Defender Settings could still enable a paid Defender plan (`pricings/write` has
+  no tier condition). conftest rejects any tier other than Free.
 
 ### bastion-policy-tester (policy tests)
 
@@ -60,26 +103,71 @@ Nothing else. It cannot read or change any other group.
 |---|---|
 | Resource groups | `resourceGroups/write` at subscription scope |
 | Custom role "Bastion VM Operator" | `roleDefinitions/write` |
-| Policy identity `id-bastion-policy` and its roles | `roleAssignments/write` |
+| Policy identity `id-bastion-policy`, its resource group and its roles | `roleAssignments/write` |
+| Delete lock on `law-huginn` | `Microsoft.Authorization/locks/write` (Owner) |
 | Management groups | the creator becomes Owner of each group |
 | Resource provider registration | `register/action` at subscription scope |
 
 ### Policy identity: id-bastion-policy
 
-A user-assigned identity used by every DeployIfNotExists member. Roles, taken from the
-`roleDefinitionIds` of the built-ins:
+A user-assigned identity used by every DeployIfNotExists member. It lives alone in
+`bastion-identity-rg`, where no CI identity has Contributor.
 
 | Role | Scope | Needed by |
 |---|---|---|
-| Log Analytics Contributor | the 3 Bastion groups and `law-huginn` | Diagnostic settings (Key Vault, NSG, blob) |
-| Monitoring Contributor | the 3 Bastion groups | Blob diagnostic settings |
-| Website Contributor | the 3 Bastion groups | App Service basic-auth fix |
+| Monitoring Contributor | `bastion-hub-rg`, `bastion-spoke-app-rg`, `bastion-test-rg` | Diagnostic settings (it includes `Microsoft.Insights/DiagnosticSettings/*` and `Microsoft.Resources/deployments/*`) |
+| Website Contributor | the same 3 groups | App Service basic-auth fix |
+| Bastion Diagnostics Destination (custom: `workspaces/read`, `workspaces/sharedKeys/action`) | `law-huginn` only | Use the workspace as a diagnostic settings destination |
 
-The built-in diagnostic-settings policies say that when the workspace is outside the
-assignment scope, Log Analytics Contributor (or similar) must be granted on it by hand.
-That is the one role assignment Bastion makes in `huginn-sentinel-rg`. No resource there
-changes. Set `grant_policy_identity_on_huginn_workspace = false` to skip it; the
-diagnostic-settings control then reports but cannot deploy.
+Before the 2026-11-04 security review it also had Log Analytics Contributor on the three
+groups and on `law-huginn`, because the Key Vault and NSG diagnostic built-ins list that
+role in their `roleDefinitionIds`. Log Analytics Contributor includes
+`Microsoft.OperationalInsights/*` (so on `law-huginn` it could delete or reconfigure
+Huginn's workspace), `Microsoft.Compute/virtualMachines/extensions/*` and
+`Microsoft.Storage/storageAccounts/listKeys/action`. It is now off by default on both:
+`policy_identity_log_analytics_contributor` and `narrow_huginn_workspace_role` bring it
+back if Azure refuses a remediation with the narrower roles (STATUS, Could not verify).
+
+Sources for the narrower roles (Microsoft Learn, read from MicrosoftDocs on 2026-11-04):
+
+- "Manage access to Log Analytics workspaces", example 3: `workspaces/read` and
+  `workspaces/sharedKeys/action` on the workspace let a user "only enumerate the
+  workspace and use it as a destination for diagnostic settings".
+- "Azure built-in roles for Monitor": the permission lists of Monitoring Contributor and
+  Log Analytics Contributor quoted above.
+
+`sharedKeys/action` returns the workspace keys, which can still be used to send data into
+the workspace. The identity can no longer read, change or delete Huginn's data or
+settings, but it could add false records. See PREVENT-DETECT.
+
+Bastion makes two writes outside its own groups, both on `law-huginn`: this role
+assignment, and a `CanNotDelete` lock (`lock_huginn_workspace`, default on). No setting of
+the workspace itself changes. The lock stops anyone deleting the workspace, including
+Huginn's own Terraform, until it is removed (SETUP explains how).
+
+### Why the apply identity can still attach the identity, and why that is dangerous
+
+Attaching a user-assigned identity to any resource needs
+`Microsoft.ManagedIdentity/userAssignedIdentities/*/assign/action` on the identity
+(Microsoft Learn, "Managed identities for Azure resources frequently asked questions",
+"Which Azure RBAC permissions are required to use a managed identity on a resource?").
+A policy assignment with `identity.type = UserAssigned` is such a resource, so the apply
+identity needs that right on `id-bastion-policy`. It gets it through the custom role
+**Bastion Policy Identity Reference** (`userAssignedIdentities/read` and
+`userAssignedIdentities/assign/action`), assigned on the identity resource only, not on its
+group.
+
+The same right is exactly what lets someone attach the identity to a container group, a
+Function App or an Automation account and run code as it. That is the path the security
+review found (PREVENT-DETECT, "Found in review"). The role assignment cannot be narrower,
+so two more controls close the path:
+
+- `denied_resource_types` blocks the compute types that can carry an identity in every
+  Bastion group: container groups, Automation accounts, deployment scripts, Container Apps
+  and jobs, App Service and Function Apps (`Microsoft.Web/sites`), Batch and Logic Apps,
+  in addition to VMs and scale sets.
+- a conftest rule fails any plan in which a resource other than a policy assignment
+  references `id-bastion-policy`.
 
 ## Human access
 

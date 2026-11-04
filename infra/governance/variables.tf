@@ -23,7 +23,7 @@ variable "allowed_locations" {
 }
 
 variable "denied_resource_types" {
-  description = "Resource types the denied_resource_types control blocks in the Bastion groups: paid network appliances (docs/adr/0007), public IPs, and VMs (no VM in the always-on design)."
+  description = "Resource types the denied_resource_types control blocks in the Bastion groups: paid network appliances (docs/adr/0007), public IPs, VMs (no VM in the always-on design) and every other compute type that can carry a managed identity."
   type        = list(string)
   default = [
     "Microsoft.Network/azureFirewalls",
@@ -41,13 +41,24 @@ variable "denied_resource_types" {
     "Microsoft.Network/publicIPPrefixes",
     "Microsoft.Compute/virtualMachines",
     "Microsoft.Compute/virtualMachineScaleSets",
+    # Compute that can carry a user-assigned identity and run code as it. Without these,
+    # nobody with Contributor in a Bastion group can run code as id-bastion-policy
+    # (review finding 1, docs/PREVENT-DETECT.md).
+    "Microsoft.ContainerInstance/containerGroups",
+    "Microsoft.Automation/automationAccounts",
+    "Microsoft.Resources/deploymentScripts",
+    "Microsoft.App/containerApps",
+    "Microsoft.App/jobs",
+    "Microsoft.Web/sites",
+    "Microsoft.Batch/batchAccounts",
+    "Microsoft.Logic/workflows",
   ]
 }
 
 variable "assignment_resource_groups" {
   description = "Bastion resource groups that receive bastion-baseline with its real effects. Never add a protected group here."
   type        = list(string)
-  default     = ["bastion-hub-rg", "bastion-spoke-app-rg", "bastion-test-rg"]
+  default     = ["bastion-hub-rg", "bastion-spoke-app-rg", "bastion-test-rg", "bastion-identity-rg"]
 
   validation {
     condition     = alltrue([for rg in var.assignment_resource_groups : startswith(rg, "bastion-")])
@@ -75,7 +86,7 @@ variable "existing_prefixed_protected_groups" {
 }
 
 variable "enable_subscription_audit" {
-  description = "Also assign bastion-baseline at subscription scope, in audit-only mode, excluding every protected group. Off by default."
+  description = "Also assign bastion-baseline at subscription scope, in audit-only mode, excluding every protected group. Off by default. Needs allow_subscription_audit_assignment = true in infra/bootstrap, or the apply identity has no right to assign at subscription scope."
   type        = bool
   default     = false
 }
@@ -93,9 +104,9 @@ variable "policy_identity_name" {
 }
 
 variable "policy_identity_resource_group" {
-  description = "Resource group of the policy identity."
+  description = "Resource group of the policy identity. Its own group, where no CI identity has Contributor (docs/adr/0006)."
   type        = string
-  default     = "bastion-hub-rg"
+  default     = "bastion-identity-rg"
 }
 
 variable "budget_amount" {
@@ -110,8 +121,9 @@ variable "budget_amount" {
 }
 
 variable "budget_alert_emails" {
-  description = "Addresses that get budget alerts. Set through the BUDGET_ALERT_EMAIL repository variable (TF_VAR_budget_alert_emails), never committed."
+  description = "Addresses that get budget alerts and Defender for Cloud security alerts (the security contact uses the first one). Personal data: set through the BUDGET_ALERT_EMAIL Actions secret (TF_VAR_budget_alert_emails), never committed, never printed."
   type        = list(string)
+  sensitive   = true
 
   validation {
     condition     = length(var.budget_alert_emails) > 0 && alltrue([for e in var.budget_alert_emails : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", e))])
