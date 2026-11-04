@@ -1,0 +1,52 @@
+{
+  "name": "bastion-deny-delete-protected",
+  "properties": {
+    "displayName": "Bastion: block deletion of resources tagged bastion-protected",
+    "description": "Pattern of the Azure Landing Zones policy DenyAction-DeleteResources, keyed on a tag instead of a name. Blocks DELETE of any resource tagged bastion-protected=true, and of its resource group (cascadeBehaviors). Used for the policy remediation identity. DenyAction supports only the delete action.",
+    "mode": "Indexed",
+    "metadata": {
+      "category": "General",
+      "version": "1.0.0",
+      "source": "pattern of Azure Landing Zones library DenyAction-DeleteResources v1.0.0 (commit 124b242, MIT licence)"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "DenyAction or Disabled"
+        },
+        "allowedValues": [
+          "DenyAction",
+          "Disabled"
+        ],
+        "defaultValue": "Disabled"
+      },
+      "tagName": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Tag name",
+          "description": "Resources with this tag set to true are protected"
+        },
+        "defaultValue": "bastion-protected"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "field": "[concat('tags[', parameters('tagName'), ']')]",
+        "equals": "true"
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "actionNames": [
+            "delete"
+          ],
+          "cascadeBehaviors": {
+            "resourceGroup": "deny"
+          }
+        }
+      }
+    }
+  }
+}

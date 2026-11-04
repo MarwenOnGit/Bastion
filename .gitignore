@@ -1,0 +1,38 @@
+# Terraform
+**/.terraform/*
+*.tfplan
+*.tfplan.json
+tfplan
+tfplan.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Bootstrap state stays on the laptop that ran it. Never commit it.
+infra/bootstrap/terraform.tfstate
+infra/bootstrap/terraform.tfstate.backup
+infra/bootstrap/.terraform.tfstate.lock.info
+
+# Any other local state
+*.tfstate
+*.tfstate.*
+
+# Local variable files can hold an email address or other personal data.
+*.tfvars
+!*.example.tfvars
+*.auto.tfvars
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store

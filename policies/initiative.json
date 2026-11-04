@@ -1,0 +1,739 @@
+{
+  "name": "bastion-baseline",
+  "displayName": "Bastion baseline",
+  "description": "Secure-by-default guardrails for the Bastion landing zone. Built-in definitions wherever one exists. Every effect is a parameter so each control can move from Audit to its target effect on its own.",
+  "metadata": {
+    "category": "Bastion",
+    "version": "1.1.0",
+    "builtInsVerifiedAgainst": "github.com/Azure/azure-policy commit f096d8d (2026-10-28)",
+    "mcsbVerifiedAgainst": "Microsoft cloud security benchmark v2 initiative e3ec7e09-768c-4b64-882c-fcada3772047 v1.8.0 (groupNames), azure-policy commit f096d8d",
+    "alzReference": "Azure-Landing-Zones-Library commit 124b242 (2026-10-20)"
+  },
+  "extraParameters": {
+    "listOfAllowedLocations": {
+      "type": "Array",
+      "metadata": {
+        "displayName": "Allowed locations",
+        "description": "Regions where Bastion resources may be created."
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "String",
+      "metadata": {
+        "displayName": "Log Analytics workspace",
+        "description": "Resource ID of law-huginn.",
+        "strongType": "omsWorkspace"
+      }
+    },
+    "listOfResourceTypesNotAllowed": {
+      "type": "Array",
+      "metadata": {
+        "displayName": "Resource types not allowed",
+        "description": "Paid network appliances, public IPs and VMs. See docs/adr/0007."
+      }
+    }
+  },
+  "controls": [
+    {
+      "control": "storage_shared_key",
+      "title": "Storage accounts disable shared key access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "P-12",
+        "D-01",
+        "D-02"
+      ],
+      "why": "With shared keys disabled, the keys returned by listKeys cannot authenticate to the data plane.",
+      "members": [
+        {
+          "referenceId": "storage-shared-key",
+          "definition": "builtin:8c6a50c6-9ffd-4ae7-986f-5fa6111f9a54",
+          "definitionName": "Storage accounts should prevent shared key access",
+          "definitionVersion": "2.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_storage_shared_key')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "IM-1"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "storage_public_network",
+      "title": "Storage accounts disable public network access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "D-01",
+        "D-02"
+      ],
+      "why": "A stolen token cannot reach blob or file data from outside the private network.",
+      "members": [
+        {
+          "referenceId": "storage-public-network",
+          "definition": "builtin:b2982f36-99f2-4db5-8eff-283140c09693",
+          "definitionName": "Storage accounts should disable public network access",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_storage_public_network')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "NS-2"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "keyvault_public_network",
+      "title": "Key Vault disables public network access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "A stolen token cannot read secrets from outside the private network.",
+      "members": [
+        {
+          "referenceId": "keyvault-public-network",
+          "definition": "builtin:405c5871-3e91-4644-8a63-58e19d68ff5b",
+          "definitionName": "Azure Key Vault should disable public network access",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_keyvault_public_network')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "NS-2"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "acr_admin_user",
+      "title": "Container registries disable the local admin user",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "P-13",
+        "D-03"
+      ],
+      "why": "With the admin user disabled, listCredentials returns nothing usable.",
+      "members": [
+        {
+          "referenceId": "acr-admin-user",
+          "definition": "builtin:dc921057-6b28-4fbe-9b83-f7bec05db6c2",
+          "definitionName": "Container registries should have local admin account disabled.",
+          "definitionVersion": "1.0.1",
+          "parameters": {
+            "effect": "[parameters('effect_acr_admin_user')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "IM-1"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "appservice_basic_auth_audit",
+      "title": "App Service and Function apps: report SCM and FTP basic auth",
+      "allowedEffects": [
+        "AuditIfNotExists",
+        "Disabled"
+      ],
+      "auditEffect": "AuditIfNotExists",
+      "targetEffect": "AuditIfNotExists",
+      "fenrir": [
+        "X-10",
+        "X-11"
+      ],
+      "why": "Shows every app where publishing credentials still work. No Deny built-in exists for this setting.",
+      "members": [
+        {
+          "referenceId": "app-scm-basic-auth-audit",
+          "definition": "builtin:aede300b-d67f-480a-ae26-4b3dfb1a1fdc",
+          "definitionName": "App Service apps should have local authentication methods disabled for SCM site deployments",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        },
+        {
+          "referenceId": "app-ftp-basic-auth-audit",
+          "definition": "builtin:871b205b-57cf-4e1e-a234-492616998bf7",
+          "definitionName": "App Service apps should have local authentication methods disabled for FTP deployments",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        },
+        {
+          "referenceId": "func-scm-basic-auth-audit",
+          "definition": "builtin:5826c6cd-9302-4aee-bced-3b1698a08f29",
+          "definitionName": "Function apps should have local authentication methods disabled for SCM site deployments",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        },
+        {
+          "referenceId": "func-ftp-basic-auth-audit",
+          "definition": "builtin:3357bf2d-1d96-4829-9724-998ef6e7b1d2",
+          "definitionName": "Function apps should have local authentication methods disabled for FTP deployments",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_audit')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "IM-1"
+      ],
+      "test": "compliance"
+    },
+    {
+      "control": "appservice_basic_auth_fix",
+      "title": "App Service and Function apps: turn SCM and FTP basic auth off",
+      "allowedEffects": [
+        "DeployIfNotExists",
+        "Disabled"
+      ],
+      "auditEffect": "Disabled",
+      "targetEffect": "DeployIfNotExists",
+      "fenrir": [
+        "X-10",
+        "X-11"
+      ],
+      "why": "Sets basicPublishingCredentialsPolicies/scm and /ftp to allow=false, so the Kudu path with publishing credentials fails. Remediation, not prevention: there is a window between creation and the fix.",
+      "members": [
+        {
+          "referenceId": "app-scm-basic-auth-fix",
+          "definition": "builtin:5e97b776-f380-4722-a9a3-e7f0be029e79",
+          "definitionName": "Configure App Service apps to disable local authentication for SCM sites",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        },
+        {
+          "referenceId": "app-ftp-basic-auth-fix",
+          "definition": "builtin:572e342c-c920-4ef5-be2e-1ed3c6a51dc5",
+          "definitionName": "Configure App Service apps to disable local authentication for FTP deployments",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        },
+        {
+          "referenceId": "func-scm-basic-auth-fix",
+          "definition": "builtin:93059548-9cbe-4cdf-a2d1-63cc8db22550",
+          "definitionName": "Configure Function apps to disable local authentication for SCM sites",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        },
+        {
+          "referenceId": "func-ftp-basic-auth-fix",
+          "definition": "builtin:c7d3e3a0-533b-4ad2-9458-9b28f465ad36",
+          "definitionName": "Configure Function apps to disable local authentication for FTP deployments",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_appservice_basic_auth_fix')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "compliance"
+    },
+    {
+      "control": "nic_no_public_ip",
+      "title": "No public IPs on network interfaces",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Fewer hosts reachable from the internet. Custom copy because the built-in effect is fixed to Deny.",
+      "members": [
+        {
+          "referenceId": "nic-no-public-ip",
+          "definition": "custom:bastion-nic-no-public-ip",
+          "definitionName": "Bastion: network interfaces should not have public IPs",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_nic_no_public_ip')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script"
+    },
+    {
+      "control": "allowed_locations",
+      "title": "Allowed locations",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Governance. Resources stay in the regions the subscription allows.",
+      "members": [
+        {
+          "referenceId": "allowed-locations",
+          "definition": "builtin:e56962a6-4747-49cd-b67b-bf8b01975c4c",
+          "definitionName": "Allowed locations",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_allowed_locations')]",
+            "listOfAllowedLocations": "[parameters('listOfAllowedLocations')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script"
+    },
+    {
+      "control": "required_tags",
+      "title": "Required tags: owner, env, project",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Governance. Every resource has an owner and a purpose. Custom copy because the built-in effect is fixed to Deny.",
+      "members": [
+        {
+          "referenceId": "require-tag-owner",
+          "definition": "custom:bastion-require-tag",
+          "definitionName": "Bastion: require a tag on resources",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "tagName": "owner",
+            "effect": "[parameters('effect_required_tags')]"
+          }
+        },
+        {
+          "referenceId": "require-tag-env",
+          "definition": "custom:bastion-require-tag",
+          "definitionName": "Bastion: require a tag on resources",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "tagName": "env",
+            "effect": "[parameters('effect_required_tags')]"
+          }
+        },
+        {
+          "referenceId": "require-tag-project",
+          "definition": "custom:bastion-require-tag",
+          "definitionName": "Bastion: require a tag on resources",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "tagName": "project",
+            "effect": "[parameters('effect_required_tags')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script"
+    },
+    {
+      "control": "diagnostic_settings",
+      "title": "Diagnostic settings to law-huginn",
+      "allowedEffects": [
+        "DeployIfNotExists",
+        "AuditIfNotExists",
+        "Disabled"
+      ],
+      "auditEffect": "AuditIfNotExists",
+      "targetEffect": "DeployIfNotExists",
+      "fenrir": [
+        "D-01",
+        "X-08",
+        "X-14"
+      ],
+      "why": "Key Vault, NSG and blob logs reach Huginn's Sentinel workspace without anyone remembering to configure them.",
+      "members": [
+        {
+          "referenceId": "diag-keyvault",
+          "definition": "builtin:6b359d8f-f88d-4052-aa7c-32015963ecc1",
+          "definitionName": "Enable logging by category group for Key vaults (microsoft.keyvault/vaults) to Log Analytics",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_diagnostic_settings')]",
+            "logAnalytics": "[parameters('logAnalyticsWorkspaceId')]",
+            "categoryGroup": "allLogs",
+            "diagnosticSettingName": "bastion-to-law-huginn"
+          }
+        },
+        {
+          "referenceId": "diag-nsg",
+          "definition": "builtin:baa4c6de-b7cf-4b12-b436-6e40ef44c8cb",
+          "definitionName": "Enable logging by category group for Network security groups (microsoft.network/networksecuritygroups) to Log Analytics",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_diagnostic_settings')]",
+            "logAnalytics": "[parameters('logAnalyticsWorkspaceId')]",
+            "categoryGroup": "allLogs",
+            "diagnosticSettingName": "bastion-to-law-huginn"
+          }
+        },
+        {
+          "referenceId": "diag-blob",
+          "definition": "builtin:b4fe1a3b-0715-4c6c-a5ea-ffc33cf823cb",
+          "definitionName": "Configure diagnostic settings for Blob Services to Log Analytics workspace",
+          "definitionVersion": "4.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_diagnostic_settings')]",
+            "logAnalytics": "[parameters('logAnalyticsWorkspaceId')]",
+            "profileName": "bastion-to-law-huginn"
+          }
+        }
+      ],
+      "mcsb": [
+        "LT-4"
+      ],
+      "test": "compliance"
+    },
+    {
+      "control": "storage_secure_transfer",
+      "title": "Storage accounts accept HTTPS only",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "D-01"
+      ],
+      "why": "No credentials or data cross the network in clear text.",
+      "members": [
+        {
+          "referenceId": "storage-secure-transfer",
+          "definition": "builtin:404c3081-a854-4457-ae30-26a93ef643f9",
+          "definitionName": "Secure transfer to storage accounts should be enabled",
+          "definitionVersion": "2.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_storage_secure_transfer')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "DP-3"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "storage_min_tls",
+      "title": "Storage accounts require TLS 1.2",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Old TLS versions are refused.",
+      "members": [
+        {
+          "referenceId": "storage-min-tls",
+          "definition": "builtin:fe83a0eb-a853-422d-aac2-1bffd182c5d0",
+          "definitionName": "Storage accounts should have the specified minimum TLS version",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_storage_min_tls')]",
+            "minimumTlsVersion": "TLS1_2"
+          }
+        }
+      ],
+      "mcsb": [
+        "DP-3"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "storage_blob_public_access",
+      "title": "Storage accounts disallow anonymous blob access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "D-01"
+      ],
+      "why": "No container can be made readable without authentication.",
+      "members": [
+        {
+          "referenceId": "storage-blob-public-access",
+          "definition": "builtin:4fa4b6c0-31ca-4c0d-b10d-24b96f62a751",
+          "definitionName": "Storage account public access should be disallowed",
+          "definitionVersion": "3.1.1",
+          "parameters": {
+            "effect": "[parameters('effect_storage_blob_public_access')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "NS-2"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "keyvault_rbac",
+      "title": "Key Vault uses the RBAC permission model",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "E-27"
+      ],
+      "why": "Data access is granted with Azure RBAC, visible in role assignments, not in vault access policies that a Contributor can edit.",
+      "members": [
+        {
+          "referenceId": "keyvault-rbac",
+          "definition": "builtin:12d4fa5e-1f9f-4c21-97a9-b99b3c6611b5",
+          "definitionName": "Azure Key Vault should use RBAC permission model",
+          "definitionVersion": "1.0.1",
+          "parameters": {
+            "effect": "[parameters('effect_keyvault_rbac')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "PA-7"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "keyvault_purge_protection",
+      "title": "Key Vault has purge protection",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "A deleted vault and its secrets can always be recovered during the retention period.",
+      "members": [
+        {
+          "referenceId": "keyvault-purge-protection",
+          "definition": "builtin:0b60c0b2-2dc2-4e1c-b5c9-abbed971de53",
+          "definitionName": "Key vaults should have deletion protection enabled",
+          "definitionVersion": "2.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_keyvault_purge_protection')]"
+          }
+        }
+      ],
+      "mcsb": [
+        "DP-8"
+      ],
+      "test": "script"
+    },
+    {
+      "control": "subnet_private",
+      "title": "Subnets have no default outbound access",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Nothing in a subnet reaches the internet through an implicit Microsoft-owned public IP.",
+      "members": [
+        {
+          "referenceId": "subnet-private",
+          "definition": "builtin:7bca8353-aa3b-429b-904a-9229c4385837",
+          "definitionName": "Subnets should be private",
+          "definitionVersion": "1.1.0",
+          "parameters": {
+            "effect": "[parameters('effect_subnet_private')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script"
+    },
+    {
+      "control": "subnet_nsg",
+      "title": "Every subnet has an NSG",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "No subnet relies on Azure's permissive default rules. ALZ assigns the same rule to landing zones.",
+      "members": [
+        {
+          "referenceId": "subnet-nsg",
+          "definition": "custom:bastion-subnet-requires-nsg",
+          "definitionName": "Bastion: subnets must have a network security group",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_subnet_nsg')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script",
+      "mcsbNote": "NS-1 via its built-in twin e71308d3-144b-4262-b144-efdc3cc90517"
+    },
+    {
+      "control": "mgmt_ports_internet",
+      "title": "No SSH or RDP open to the internet",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [],
+      "why": "Management ports are the most attacked endpoints on the internet. ALZ assigns the same rule to landing zones.",
+      "members": [
+        {
+          "referenceId": "mgmt-ports-internet",
+          "definition": "custom:bastion-deny-mgmt-ports-from-internet",
+          "definitionName": "Bastion: management ports must not be open to the internet",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_mgmt_ports_internet')]",
+            "ports": [
+              "22",
+              "3389"
+            ]
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script"
+    },
+    {
+      "control": "denied_resource_types",
+      "title": "Paid network appliances, public IPs and VMs cannot be created",
+      "allowedEffects": [
+        "Audit",
+        "Deny",
+        "Disabled"
+      ],
+      "auditEffect": "Audit",
+      "targetEffect": "Deny",
+      "fenrir": [
+        "X-08"
+      ],
+      "why": "Cost and exposure guardrail enforced by Azure itself, not only by CI. Also enforces the no-VM design that removes the Run Command target.",
+      "members": [
+        {
+          "referenceId": "denied-resource-types",
+          "definition": "builtin:6c112d4e-5bc7-47ae-a041-ea2d9dccd749",
+          "definitionName": "Not allowed resource types",
+          "definitionVersion": "2.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_denied_resource_types')]",
+            "listOfResourceTypesNotAllowed": "[parameters('listOfResourceTypesNotAllowed')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script"
+    },
+    {
+      "control": "protect_diagnostic_settings",
+      "title": "Diagnostic settings cannot be deleted",
+      "allowedEffects": [
+        "DenyAction",
+        "Disabled"
+      ],
+      "auditEffect": "Disabled",
+      "targetEffect": "DenyAction",
+      "fenrir": [],
+      "why": "An attacker with Contributor cannot remove the log pipeline to Huginn. DenyAction is the only Azure Policy effect that blocks an action, and it supports only delete.",
+      "test": "manual",
+      "members": [
+        {
+          "referenceId": "protect-diagnostic-settings",
+          "definition": "custom:bastion-deny-delete-diagnostic-settings",
+          "definitionName": "Bastion: block deletion of diagnostic settings",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_protect_diagnostic_settings')]"
+          }
+        }
+      ],
+      "mcsb": []
+    },
+    {
+      "control": "delete_protection",
+      "title": "Resources tagged bastion-protected cannot be deleted",
+      "allowedEffects": [
+        "DenyAction",
+        "Disabled"
+      ],
+      "auditEffect": "Disabled",
+      "targetEffect": "DenyAction",
+      "fenrir": [],
+      "why": "Protects the policy remediation identity, without which DeployIfNotExists silently stops working.",
+      "members": [
+        {
+          "referenceId": "delete-protection",
+          "definition": "custom:bastion-deny-delete-protected",
+          "definitionName": "Bastion: block deletion of resources tagged bastion-protected",
+          "definitionVersion": "1.0.0",
+          "parameters": {
+            "effect": "[parameters('effect_delete_protection')]"
+          }
+        }
+      ],
+      "mcsb": [],
+      "test": "script"
+    }
+  ]
+}
