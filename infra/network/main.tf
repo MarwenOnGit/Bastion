@@ -44,12 +44,26 @@ locals {
   }
 }
 
+# Subnets are declared inline, each with its NSG, so that every VNet PUT already
+# carries the NSG association. A separate azurerm_subnet followed by an
+# azurerm_subnet_network_security_group_association would create the subnet without
+# an NSG first, which the subnet_nsg control (ALZ Deny-Subnet-Without-Nsg) denies.
 resource "azurerm_virtual_network" "hub" {
   name                = "vnet-bastion-hub"
   resource_group_name = data.azurerm_resource_group.hub.name
   location            = var.location
   address_space       = [var.hub_address_space]
   tags                = local.tags
+
+  dynamic "subnet" {
+    for_each = local.hub_subnets
+    content {
+      name                            = "snet-${subnet.key}"
+      address_prefixes                = [subnet.value]
+      security_group                  = azurerm_network_security_group.this["hub-${subnet.key}"].id
+      default_outbound_access_enabled = false
+    }
+  }
 }
 
 resource "azurerm_virtual_network" "spoke" {
@@ -58,29 +72,26 @@ resource "azurerm_virtual_network" "spoke" {
   location            = var.location
   address_space       = [var.spoke_address_space]
   tags                = local.tags
+
+  dynamic "subnet" {
+    for_each = local.spoke_subnets
+    content {
+      name                            = "snet-${subnet.key}"
+      address_prefixes                = [subnet.value]
+      security_group                  = azurerm_network_security_group.this["spoke-${subnet.key}"].id
+      default_outbound_access_enabled = false
+
+      # Apply NSG rules to private endpoints too, so the PE subnet's deny-all is real.
+      private_endpoint_network_policies = subnet.key == "private-endpoints" ? "Enabled" : "Disabled"
+    }
+  }
 }
 
-resource "azurerm_subnet" "hub" {
-  for_each = local.hub_subnets
-
-  name                            = "snet-${each.key}"
-  resource_group_name             = data.azurerm_resource_group.hub.name
-  virtual_network_name            = azurerm_virtual_network.hub.name
-  address_prefixes                = [each.value]
-  default_outbound_access_enabled = false
-}
-
-resource "azurerm_subnet" "spoke" {
-  for_each = local.spoke_subnets
-
-  name                            = "snet-${each.key}"
-  resource_group_name             = data.azurerm_resource_group.spoke.name
-  virtual_network_name            = azurerm_virtual_network.spoke.name
-  address_prefixes                = [each.value]
-  default_outbound_access_enabled = false
-
-  # Apply NSG rules to private endpoints too, so the PE subnet's deny-all is real.
-  private_endpoint_network_policies = each.key == "private-endpoints" ? "Enabled" : "Disabled"
+locals {
+  subnet_ids = merge(
+    { for s in azurerm_virtual_network.hub.subnet : "hub-${trimprefix(s.name, "snet-")}" => s.id },
+    { for s in azurerm_virtual_network.spoke.subnet : "spoke-${trimprefix(s.name, "snet-")}" => s.id },
+  )
 }
 
 # Hub <-> spoke peering. No gateway transit, no forwarded traffic.

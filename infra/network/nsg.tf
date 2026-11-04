@@ -18,8 +18,7 @@ locals {
 
   nsg_rules = {
     hub-shared-services = {
-      rg     = "hub"
-      subnet = azurerm_subnet.hub["shared-services"].id
+      rg = "hub"
       rules = [
         { name = "allow-out-pe-https", priority = 100, direction = "Outbound", access = "Allow", protocol = "Tcp", src = local.hub_prefix_shared, dst = local.spoke_prefix_pe, port = "443" },
         { name = "allow-out-entra-id", priority = 110, direction = "Outbound", access = "Allow", protocol = "Tcp", src = local.hub_prefix_shared, dst = "AzureActiveDirectory", port = "443" },
@@ -29,8 +28,7 @@ locals {
       ]
     }
     spoke-app = {
-      rg     = "spoke"
-      subnet = azurerm_subnet.spoke["app"].id
+      rg = "spoke"
       rules = [
         { name = "allow-out-pe-https", priority = 100, direction = "Outbound", access = "Allow", protocol = "Tcp", src = local.spoke_prefix_app, dst = local.spoke_prefix_pe, port = "443" },
         { name = "allow-out-entra-id", priority = 110, direction = "Outbound", access = "Allow", protocol = "Tcp", src = local.spoke_prefix_app, dst = "AzureActiveDirectory", port = "443" },
@@ -40,8 +38,7 @@ locals {
       ]
     }
     spoke-private-endpoints = {
-      rg     = "spoke"
-      subnet = azurerm_subnet.spoke["private-endpoints"].id
+      rg = "spoke"
       rules = [
         { name = "allow-in-https-from-app", priority = 100, direction = "Inbound", access = "Allow", protocol = "Tcp", src = local.spoke_prefix_app, dst = local.spoke_prefix_pe, port = "443" },
         { name = "allow-in-https-from-hub-shared", priority = 110, direction = "Inbound", access = "Allow", protocol = "Tcp", src = local.hub_prefix_shared, dst = local.spoke_prefix_pe, port = "443" },
@@ -87,11 +84,4 @@ resource "azurerm_network_security_rule" "this" {
   source_port_range           = "*"
   destination_address_prefix  = each.value.dst
   destination_port_range      = each.value.port
-}
-
-resource "azurerm_subnet_network_security_group_association" "this" {
-  for_each = local.nsg_rules
-
-  subnet_id                 = each.value.subnet
-  network_security_group_id = azurerm_network_security_group.this[each.key].id
 }

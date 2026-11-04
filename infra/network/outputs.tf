@@ -10,7 +10,7 @@ output "spoke_vnet_id" {
 
 output "private_endpoint_subnet_id" {
   description = "Subnet for the workload's private endpoints."
-  value       = azurerm_subnet.spoke["private-endpoints"].id
+  value       = local.subnet_ids["spoke-private-endpoints"]
 }
 
 output "private_dns_zone_ids" {
@@ -21,4 +21,9 @@ output "private_dns_zone_ids" {
 output "reserved_hub_ranges" {
   description = "Hub ranges kept free for a production firewall, gateway and Azure Bastion service. Nothing is deployed there."
   value       = local.reserved_hub_ranges
+}
+
+output "subnet_ids" {
+  description = "Subnet IDs by <vnet>-<subnet> key."
+  value       = local.subnet_ids
 }
