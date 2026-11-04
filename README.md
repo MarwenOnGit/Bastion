@@ -1,8 +1,11 @@
 # Bastion
 
-A small, secure-by-default Azure landing zone in Terraform: governance (management
-groups, policy, budget), a hub-and-spoke network, private access to PaaS services, least
-privilege, and a pipeline that proves the guardrails work by trying to break them.
+A small, secure-by-default Azure landing zone in Terraform: governance (a policy
+initiative, a budget, a management group hierarchy), a hub-and-spoke network, private
+access to PaaS services, least privilege, and a pipeline that proves the guardrails work
+by trying to break them.
+
+Scope, stated once and plainly: policy is assigned at resource group scope; the management group hierarchy is prepared but empty until ADR 0001's check is done.
 
 > **Name:** this is the **Bastion landing zone**. It does not deploy Azure Bastion,
 > Microsoft's paid jump-host service. See [ADR 0007](docs/adr/0007-no-firewall-gateway-or-azure-bastion-service.md).

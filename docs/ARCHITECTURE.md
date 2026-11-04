@@ -5,6 +5,9 @@ Bastion service (Microsoft's jump-host product); "Bastion" here is the landing z
 
 ## Governance
 
+In one sentence: policy is assigned at resource group scope; the management group hierarchy is prepared but empty until ADR 0001's check is done. The diagram shows the hierarchy because it is created, not
+because anything is assigned to it.
+
 ```mermaid
 flowchart TB
   root["Tenant Root Group"]

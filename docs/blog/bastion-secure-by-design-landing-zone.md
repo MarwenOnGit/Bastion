@@ -20,10 +20,11 @@ description: "How I built a small Azure landing zone in Terraform on one Azure f
 
 ## TL;DR
 
-- **What:** a small Azure landing zone in Terraform: management groups, a policy
-  initiative with 21 controls, a budget, a hub-and-spoke network with private endpoints,
+- **What:** a small Azure landing zone in Terraform: a policy initiative with 21
+  controls, a budget, a management group hierarchy, a hub-and-spoke network with private endpoints,
   least-privilege CI identities without a single secret, and five GitHub Actions
   workflows.
+- **Scope:** policy is assigned at resource group scope; the management group hierarchy is prepared but empty until ADR 0001's check is done.
 - **The twist:** every enforcing guardrail has a test that tries to break it. The test
   passes only if Azure answers `RequestDisallowedByPolicy` and names the expected policy.
   Every night.
@@ -76,11 +77,11 @@ areas. Here is how Bastion covers each one, compressed. The full comparison is i
 |---|---|
 | Billing and tenant | Personal tenant, one subscription, budget with 50/80/100% alerts |
 | Identity and access | OIDC only, three least-privilege CI identities, a custom role without Run Command |
-| Resource organization | `bastion` > `platform`, `landing-zones`, `sandbox`; resource groups as subscriptions |
+| Resource organization | Resource groups as subscriptions. `bastion` > `platform`, `landing-zones`, `sandbox` exists, but policy is assigned at resource group scope; the management group hierarchy is prepared but empty until ADR 0001's check is done |
 | Network topology | Hub and spoke, private DNS in the hub, private endpoints, NSG on every subnet |
 | Security | Defender for Cloud free tier, every control mapped to MCSB v2 |
 | Management | Logs to Huginn's workspace by policy; diagnostic settings cannot be deleted |
-| Governance | 21 policy controls, built-ins first, Audit first, tested |
+| Governance | 21 policy controls, built-ins first, Audit first, tested, assigned to the Bastion resource groups |
 | Platform automation | Terraform, GitHub Actions, approvals, nightly drift and compliance |
 
 A pleasant surprise: CAF has a page for exactly my situation, "Transition a single
