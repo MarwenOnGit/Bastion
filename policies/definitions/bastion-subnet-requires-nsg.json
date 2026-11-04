@@ -1,0 +1,92 @@
+{
+  "name": "bastion-subnet-requires-nsg",
+  "properties": {
+    "displayName": "Bastion: subnets must have a network security group",
+    "description": "Copy of the Azure Landing Zones policy Deny-Subnet-Without-Nsg. Denies a virtual network or subnet whose subnet has no NSG. Policy rule unchanged; the default effect is Audit instead of Deny to follow the Audit-first rule. The built-in equivalent (e71308d3-144b-4262-b144-efdc3cc90517) only supports AuditIfNotExists.",
+    "mode": "All",
+    "metadata": {
+      "category": "Network",
+      "version": "1.0.0",
+      "source": "Azure Landing Zones library Deny-Subnet-Without-Nsg v2.1.0 (github.com/Azure/Azure-Landing-Zones-Library, commit 124b242, MIT licence, Copyright (c) Microsoft Corporation)"
+    },
+    "parameters": {
+      "effect": {
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit",
+        "metadata": {
+          "description": "Enable or disable the execution of the policy",
+          "displayName": "Effect"
+        },
+        "type": "String"
+      },
+      "excludedSubnets": {
+        "defaultValue": [
+          "GatewaySubnet",
+          "AzureFirewallSubnet",
+          "AzureFirewallManagementSubnet",
+          "RouteServerSubnet"
+        ],
+        "metadata": {
+          "description": "Array of subnet names that are excluded from this policy",
+          "displayName": "Excluded Subnets"
+        },
+        "type": "Array"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "anyOf": [
+          {
+            "allOf": [
+              {
+                "equals": "Microsoft.Network/virtualNetworks",
+                "field": "type"
+              },
+              {
+                "count": {
+                  "field": "Microsoft.Network/virtualNetworks/subnets[*]",
+                  "where": {
+                    "allOf": [
+                      {
+                        "exists": "false",
+                        "field": "Microsoft.Network/virtualNetworks/subnets[*].networkSecurityGroup.id"
+                      },
+                      {
+                        "field": "Microsoft.Network/virtualNetworks/subnets[*].name",
+                        "notIn": "[parameters('excludedSubnets')]"
+                      }
+                    ]
+                  }
+                },
+                "notEquals": 0
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "equals": "Microsoft.Network/virtualNetworks/subnets",
+                "field": "type"
+              },
+              {
+                "field": "name",
+                "notIn": "[parameters('excludedSubnets')]"
+              },
+              {
+                "exists": "false",
+                "field": "Microsoft.Network/virtualNetworks/subnets/networkSecurityGroup.id"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]"
+      }
+    }
+  }
+}

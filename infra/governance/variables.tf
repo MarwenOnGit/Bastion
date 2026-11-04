@@ -22,6 +22,28 @@ variable "allowed_locations" {
   default     = ["francecentral", "italynorth", "swedencentral", "polandcentral", "switzerlandnorth"]
 }
 
+variable "denied_resource_types" {
+  description = "Resource types the denied_resource_types control blocks in the Bastion groups: paid network appliances (docs/adr/0007), public IPs, and VMs (no VM in the always-on design)."
+  type        = list(string)
+  default = [
+    "Microsoft.Network/azureFirewalls",
+    "Microsoft.Network/firewallPolicies",
+    "Microsoft.Network/bastionHosts",
+    "Microsoft.Network/virtualNetworkGateways",
+    "Microsoft.Network/vpnGateways",
+    "Microsoft.Network/expressRouteCircuits",
+    "Microsoft.Network/expressRouteGateways",
+    "Microsoft.Network/ddosProtectionPlans",
+    "Microsoft.Network/applicationGateways",
+    "Microsoft.Network/natGateways",
+    "Microsoft.Network/virtualHubs",
+    "Microsoft.Network/publicIPAddresses",
+    "Microsoft.Network/publicIPPrefixes",
+    "Microsoft.Compute/virtualMachines",
+    "Microsoft.Compute/virtualMachineScaleSets",
+  ]
+}
+
 variable "assignment_resource_groups" {
   description = "Bastion resource groups that receive bastion-baseline with its real effects. Never add a protected group here."
   type        = list(string)

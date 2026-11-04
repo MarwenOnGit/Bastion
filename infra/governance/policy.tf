@@ -55,8 +55,9 @@ locals {
   assignment_parameters = merge(
     { for k, v in local.effects : "effect_${k}" => { value = v } },
     {
-      listOfAllowedLocations  = { value = var.allowed_locations }
-      logAnalyticsWorkspaceId = { value = var.huginn_workspace_id }
+      listOfAllowedLocations        = { value = var.allowed_locations }
+      logAnalyticsWorkspaceId       = { value = var.huginn_workspace_id }
+      listOfResourceTypesNotAllowed = { value = var.denied_resource_types }
     }
   )
 
@@ -64,8 +65,9 @@ locals {
   audit_only_parameters = merge(
     { for k, c in local.controls : "effect_${k}" => { value = c.auditEffect } },
     {
-      listOfAllowedLocations  = { value = var.allowed_locations }
-      logAnalyticsWorkspaceId = { value = var.huginn_workspace_id }
+      listOfAllowedLocations        = { value = var.allowed_locations }
+      logAnalyticsWorkspaceId       = { value = var.huginn_workspace_id }
+      listOfResourceTypesNotAllowed = { value = var.denied_resource_types }
     }
   )
 

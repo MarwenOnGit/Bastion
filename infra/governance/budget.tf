@@ -47,3 +47,13 @@ resource "azurerm_security_center_subscription_pricing" "cspm_free" {
   tier          = "Free"
   resource_type = "CloudPosture"
 }
+
+# Security contact: Defender for Cloud sends its (free tier) security alerts and
+# attack-path notifications here, and to subscription owners. Free.
+resource "azurerm_security_center_contact" "default" {
+  #checkov:skip=CKV_AZURE_20:A phone number would be personal data in a public repository; email alerts are enough for a lab.
+  name                = "default"
+  email               = var.budget_alert_emails[0]
+  alert_notifications = true
+  alerts_to_admins    = true
+}
